@@ -1,6 +1,8 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth"; // Authentication'ı kullanmak için
-import { getFirestore } from "firebase/firestore"; // Firestore'u kullanmak için
+// --- ESKİ `getAuth` SİLİNDİ, YENİLERİ EKLENDİ ---
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
+import { getFirestore } from "firebase/firestore";
 
 
 const firebaseConfig = {
@@ -18,4 +20,9 @@ const app = initializeApp(firebaseConfig);
 
 // Diğer dosyalarda kullanmak üzere servisleri dışa aktar (export et)
 export const db = getFirestore(app);
-export const auth = getAuth(app);
+
+// --- ESKİ `getAuth` YERİNE GÜNCELLENMİŞ KOD ---
+// Bu kod, kullanıcının giriş durumunu telefonun hafızasında (AsyncStorage) saklar.
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+});

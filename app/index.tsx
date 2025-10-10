@@ -1,7 +1,7 @@
+import { auth } from '@/firebaseConfig'; // Ana dizine çıkmak için ../../ kullandık
 import { useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
-import { Alert, Button, StyleSheet, Text, View } from 'react-native';
-import { auth } from '../../firebaseConfig'; // Bu dosya app/(tabs) içinde olduğu için ../../ kullanıyoruz
+import { Button, StyleSheet, Text, View } from 'react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -14,7 +14,7 @@ export default function HomeScreen() {
       })
       .catch((error) => {
         console.error(error);
-        Alert.alert('Logout Error', error.message);
+        alert('Logout Error: ' + error.message);
       });
   };
 
@@ -22,12 +22,9 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Derd</Text>
       <Text style={styles.subtitle}>Zihinsel rahatlama ve farkındalık yolculuğun burada başlıyor.</Text>
-      
-      {/* --- EKSİK OLAN KISIM --- */}
       <View style={styles.buttonContainer}>
         <Button title="Logout" onPress={handleLogout} color="#556B55" />
       </View>
-      {/* --- BİTTİ --- */}
     </View>
   );
 }
@@ -52,7 +49,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   buttonContainer: {
-    marginTop: 50, // Buton ile yazı arasına boşluk koyalım
-    width: '60%',
+    marginTop: 30,
   }
 });
