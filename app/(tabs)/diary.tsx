@@ -14,9 +14,11 @@ import {
   View
 } from 'react-native';
 
-import { addDoc, collection, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
+// Gerekli Firebase fonksiyonları ve ayarları
+import { addDoc, collection, doc, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import { auth, db } from '../../firebaseConfig';
 
+// DiaryEntry interface'i
 interface DiaryEntry {
   id: string;
   title: string;
@@ -31,31 +33,46 @@ export default function DiaryScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, "diaries"), orderBy("createdAt", "desc"));
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const entriesData: DiaryEntry[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.createdAt) { // createdAt null değilse devam et
+    const user = auth.currentUser; // O anki kullanıcıyı al
+    if (user) {
+      // Sadece "userId" alanı bizim kullanıcımızın kimliği (uid)
+      // ile eşleşen dökümanları getiren sorgu.
+      const q = query(
+        collection(db, "diaries"), 
+        where("userId", "==", user.uid), 
+        orderBy("createdAt", "desc")
+      );
+      
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const entriesData: DiaryEntry[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.createdAt) {
             entriesData.push({ 
-                id: doc.id, 
-                title: data.title, 
-                content: data.content,
-                createdAt: data.createdAt.toDate()
+              id: doc.id, 
+              title: data.title, 
+              content: data.content,
+              createdAt: data.createdAt.toDate()
             });
-        }
+          }
+        });
+        setEntries(entriesData);
       });
-      setEntries(entriesData);
-    });
 
-    return () => unsubscribe();
-  }, []);
+      return () => unsubscribe();
+    }
+  }, [auth.currentUser]); // Kullanıcı durumu değiştiğinde de sorguyu yenilemek için
 
   const handleSave = async () => {
     if (title.trim().length === 0 || content.trim().length === 0) {
       Alert.alert('Error', 'Please fill in both title and content.');
       return;
+    }
+    
+    const user = auth.currentUser;
+    if (!user) {
+        Alert.alert('Error', 'You must be logged in to save an entry.');
+        return;
     }
 
     try {
@@ -67,12 +84,14 @@ export default function DiaryScreen() {
         });
         Alert.alert('Success', 'Entry updated successfully!');
       } else {
+        // Yeni dökümana "userId" alanı ekleniyor
         await addDoc(collection(db, "diaries"), {
           title: title,
           content: content,
-          createdAt: new Date()
+          createdAt: new Date(),
+          userId: user.uid 
         });
-        Alert.alert('Success', 'Entry saved successfully to the cloud!');
+        Alert.alert('Success', 'Entry saved successfully!');
       }
       
       setTitle('');
@@ -99,30 +118,13 @@ export default function DiaryScreen() {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView>
           <Text style={styles.header}>{editingId ? 'Edit Your Entry' : 'How Are You Feeling Today?'}</Text>
-          
-          <TextInput 
-            style={styles.inputTitle} 
-            placeholder="Title" 
-            placeholderTextColor="#556B55"
-            value={title} 
-            onChangeText={setTitle} 
-          />
-          <TextInput 
-            style={styles.inputContent} 
-            placeholder="Write your thoughts here..." 
-            placeholderTextColor="#556B55"
-            multiline={true} 
-            value={content} 
-            onChangeText={setContent} 
-          />
-
+          <TextInput style={styles.inputTitle} placeholder="Title" value={title} onChangeText={setTitle} />
+          <TextInput style={styles.inputContent} placeholder="Write your thoughts here..." multiline={true} value={content} onChangeText={setContent} />
           <TouchableOpacity style={styles.button} onPress={handleSave}>
             <FontAwesome name={editingId ? "save" : "check"} size={20} color="#FFFFFF" />
             <Text style={styles.buttonText}>{editingId ? 'Update Entry' : 'Save Entry'}</Text>
           </TouchableOpacity>
-
           <View style={styles.divider} />
-
           {entries.map(entry => (
             <View key={entry.id} style={styles.entryContainer}>
               <View style={styles.entryHeader}>
@@ -141,7 +143,6 @@ export default function DiaryScreen() {
   );
 }
 
-// --- DİĞER HATALAR İÇİN TAM VE DÜZELTİLMİŞ STİLLER ---
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#a9c2a9' },
     header: { fontSize: 28, fontWeight: '300', color: '#2F4F4F', textAlign: 'center', marginBottom: 25, paddingTop: 60, },
@@ -153,6 +154,6 @@ const styles = StyleSheet.create({
     entryContainer: { backgroundColor: 'rgba(255, 255, 255, 0.5)', borderRadius: 15, padding: 15, marginHorizontal: 20, marginBottom: 15, },
     entryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5, },
     entryTitle: { fontSize: 20, fontWeight: 'bold', color: '#2F4F4F', },
-    entryDate: { fontSize: 12, color: '#556B55', marginBottom: 10, }, // Bu ve altındaki eksikti
+    entryDate: { fontSize: 12, color: '#556B55', marginBottom: 10, },
     entryContent: { fontSize: 16, color: '#333333', },
 });

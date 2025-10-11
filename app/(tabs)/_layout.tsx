@@ -10,18 +10,17 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: '#1C1C1E',
         },
-        // Tüm sekmeler için genel başlık ayarlarını buraya da ekleyebiliriz
         headerStyle: {
-          backgroundColor: '#1C1C1E', // Başlık çubuğu arkaplanı
+          backgroundColor: '#1C1C1E',
         },
-        headerTintColor: '#FFFFFF', // Başlık yazı rengi
+        headerTintColor: '#FFFFFF',
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <FontAwesome name="home" size={28} color={color} />,
-          headerTitle: 'Home', // Ana Sayfa'nın başlığı
+          headerTitle: 'Home',
         }}
       />
       <Tabs.Screen
@@ -29,7 +28,7 @@ export default function TabLayout() {
         options={{
           title: 'Diary',
           tabBarIcon: ({ color }) => <FontAwesome name="book" size={24} color={color} />,
-          headerTitle: 'My Diary', // Günlük ekranının başlığı
+          headerTitle: 'My Diary',
         }}
       />
       <Tabs.Screen
@@ -37,8 +36,19 @@ export default function TabLayout() {
         options={{
           title: 'Explore',
           tabBarIcon: ({ color }) => <FontAwesome name="compass" size={28} color={color} />,
-          headerTitle: 'Explore', // Keşfet ekranının başlığı
+          headerTitle: 'Explore',
         }}
       />
+      {/* --- YENİ EKLENEN PROFİL SEKMESİ --- */}
+      <Tabs.Screen
+        name="profile" // Bu, app/(tabs)/profile.tsx dosyasını arayacak
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => <FontAwesome name="user" size={28} color={color} />,
+          headerTitle: 'My Profile',
+        }}
+      />
+      {/* --- BİTTİ --- */}
     </Tabs>
-  );}
+  );
+}
