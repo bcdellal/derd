@@ -89,7 +89,7 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'transparent',
   },
   card: {
     backgroundColor: 'white',

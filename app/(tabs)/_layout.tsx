@@ -9,11 +9,13 @@ export default function TabLayout() {
         tabBarInactiveTintColor: 'gray',
         tabBarStyle: {
           backgroundColor: '#1C1C1E',
+          borderTopColor: '#333', // Üst çizgiyi hafif belirgin yapalım
         },
+        // --- İSTEDİĞİN SİYAH ALANI GERİ GETİREN AYARLAR ---
         headerStyle: {
-          backgroundColor: '#1C1C1E',
+          backgroundColor: '#1C1C1E', // Başlık çubuğuna solid, koyu bir renk veriyoruz
         },
-        headerTintColor: '#FFFFFF',
+        headerTintColor: '#FFFFFF', // Başlık yazı rengi beyaz
       }}>
       <Tabs.Screen
         name="index"
@@ -39,16 +41,14 @@ export default function TabLayout() {
           headerTitle: 'Explore',
         }}
       />
-      {/* --- YENİ EKLENEN PROFİL SEKMESİ --- */}
       <Tabs.Screen
-        name="profile" // Bu, app/(tabs)/profile.tsx dosyasını arayacak
+        name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <FontAwesome name="user" size={28} color={color} />,
           headerTitle: 'My Profile',
         }}
       />
-      {/* --- BİTTİ --- */}
     </Tabs>
   );
 }
