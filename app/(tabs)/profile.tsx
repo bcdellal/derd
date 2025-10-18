@@ -136,7 +136,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require("../../assets/images/forprofile.png")}
+        source={require("../../assets/images/pparka.jpg")}
         style={StyleSheet.absoluteFillObject}
         blurRadius={8}
       />
