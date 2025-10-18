@@ -1,12 +1,10 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
-  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -15,76 +13,67 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View,
+  View
 } from "react-native";
-import { auth, db } from "../firebaseConfig";
+import { auth } from "../firebaseConfig";
 
-export default function RegisterScreen() {
+export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const logoAnim = useRef(new Animated.Value(0)).current;
 
-  // --- Animasyon başlat ---
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.spring(logoAnim, {
+        toValue: 1,
+        friction: 5,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
-  // --- Kayıt işlemi ---
-  const handleRegister = async () => {
+  const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert("Eksik Bilgi", "Lütfen e-posta ve şifre giriniz.");
+      Alert.alert("Missing Info", "Please enter both email and password.");
       return;
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
-      // ✅ Firestore'da kullanıcı belgesi oluştur
-      await setDoc(doc(db, "users", user.uid), {
-        email: user.email,
-        createdAt: new Date().toISOString(),
-        profilePictureURL: null,
-      });
-
-      Alert.alert("Başarılı 🎉", "Hesabınız oluşturuldu!");
+      Alert.alert("Welcome Back 🌿", `Glad to see you again, ${user.email}`);
       router.replace("/(tabs)" as any);
     } catch (error: any) {
-      Alert.alert("Kayıt Hatası", error.message);
+      Alert.alert("Login Error", error.message);
     }
   };
 
   return (
-    <LinearGradient colors={["#A8CBA8", "#2E3D3A"]} style={styles.background}>
+    <LinearGradient colors={["#BFD8BF", "#3C5247"]} style={styles.background}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <Animated.View style={[styles.inner, { opacity: fadeAnim }]}>
-            {/* Logo */}
-            <Image
+            <Animated.Image
               source={require("../assets/images/logo.png")}
-              style={styles.logo}
+              style={[styles.logo, { transform: [{ scale: logoAnim }] }]}
               resizeMode="contain"
             />
 
-            {/* Başlık */}
-            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>
-              Begin your journey of calm and self-discovery 🌿
+              Sign in to continue your journey of peace and growth
             </Text>
 
-            {/* Email */}
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -94,8 +83,6 @@ export default function RegisterScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
             />
-
-            {/* Password */}
             <TextInput
               style={styles.input}
               placeholder="Password"
@@ -105,16 +92,14 @@ export default function RegisterScreen() {
               secureTextEntry
             />
 
-            {/* Register Button */}
-            <TouchableOpacity style={styles.button} onPress={handleRegister}>
-              <Text style={styles.buttonText}>Sign Up</Text>
+            <TouchableOpacity style={styles.button} onPress={handleLogin}>
+              <Text style={styles.buttonText}>Login</Text>
             </TouchableOpacity>
 
-            {/* Footer */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => router.push("/login" as any)}>
-                <Text style={styles.linkText}>Sign In</Text>
+              <Text style={styles.footerText}>Don’t have an account? </Text>
+              <TouchableOpacity onPress={() => router.push("/register" as any)}>
+                <Text style={styles.linkText}>Sign Up</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -124,14 +109,9 @@ export default function RegisterScreen() {
   );
 }
 
-// --- Stil ayarları ---
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-  },
+  background: { flex: 1 },
+  container: { flex: 1 },
   inner: {
     flex: 1,
     justifyContent: "center",
@@ -139,18 +119,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
   },
   logo: {
-    width: 180, // 🔥 Daha büyük logo
-    height: 180,
-    marginBottom: 25,
+    width: 200, // 🔥 büyütüldü
+    height: 200,
+    marginBottom: 35,
   },
   title: {
-    fontSize: 32,
+    fontSize: 34,
     color: "#F0F6F0",
     fontWeight: "600",
     marginBottom: 10,
   },
   subtitle: {
-    color: "#DCE7DC",
+    color: "#E6F1E6",
     fontSize: 15,
     marginBottom: 40,
     textAlign: "center",
@@ -194,3 +174,4 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 });
+

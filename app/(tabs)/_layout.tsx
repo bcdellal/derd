@@ -11,11 +11,11 @@ export default function TabLayout() {
           backgroundColor: '#1C1C1E',
           borderTopColor: '#333', // Üst çizgiyi hafif belirgin yapalım
         },
-        // --- İSTEDİĞİN SİYAH ALANI GERİ GETİREN AYARLAR ---
+        
         headerStyle: {
-          backgroundColor: '#1C1C1E', // Başlık çubuğuna solid, koyu bir renk veriyoruz
+          backgroundColor: '#1C1C1E', 
         },
-        headerTintColor: '#FFFFFF', // Başlık yazı rengi beyaz
+        headerTintColor: '#FFFFFF', 
       }}>
       <Tabs.Screen
         name="index"

@@ -1,152 +1,255 @@
-import { FontAwesome } from '@expo/vector-icons';
-import { Audio, ResizeMode, Video } from 'expo-av'; // <<< ResizeMode EKLENDİ
-import React, { useEffect, useState } from 'react';
-import { ImageBackground, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { auth } from '../../firebaseConfig';
+import { FontAwesome } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
+import React, { useEffect, useState } from "react";
+import {
+  Dimensions,
+  FlatList,
+  ImageBackground,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { auth } from "../../firebaseConfig";
+
+const meditations = [
+  {
+    id: "1",
+    title: "5 Dakikalık Orman Yürüyüşü",
+    description: "Zihnini an'a getir.",
+    audio: require("../../assets/audio/meditation-sound.mp3"),
+    video: require("../../assets/videos/forest-loop.mp4"),
+    image: require("../../assets/images/forest-bg.jpg"),
+  },
+  {
+    id: "2",
+    title: "Okyanus Sakinliği",
+    description: "Dalgaların ritmiyle rahatla.",
+    audio: require("../../assets/audio/meditation-sound.mp3"),
+    video: require("../../assets/videos/forest-loop.mp4"),
+    image: require("../../assets/images/forest-bg.jpg"),
+  },
+  {
+    id: "3",
+    title: "Yağmur Huzuru",
+    description: "Yağmur damlalarını dinle.",
+    audio: require("../../assets/audio/meditation-sound.mp3"),
+    video: require("../../assets/videos/forest-loop.mp4"),
+    image: require("../../assets/images/forest-bg.jpg"),
+  },
+];
+
+const { width } = Dimensions.get("window");
+const CARD_WIDTH = width * 0.75;
+const SPACING = 16;
+
+const MeditationCard = ({
+  item,
+  isPlaying,
+  onPlayPause,
+}: {
+  item: any;
+  isPlaying: boolean;
+  onPlayPause: (id: string) => void;
+}) => {
+  const player = useVideoPlayer(item.video, (p) => {
+    p.loop = true;
+    p.muted = true;
+  });
+
+  useEffect(() => {
+    if (isPlaying) player.play();
+    else player.pause();
+  }, [isPlaying]);
+
+  return (
+    <TouchableOpacity
+      onPress={() => onPlayPause(item.id)}
+      activeOpacity={0.9}
+      style={styles.cardContainer}
+    >
+      <View style={styles.widgetBackground}>
+        {isPlaying ? (
+          <VideoView player={player} style={{ flex: 1 }} />
+        ) : (
+          <ImageBackground
+            source={item.image}
+            style={{ flex: 1 }}
+            imageStyle={{ borderRadius: 20 }}
+          />
+        )}
+
+        <View style={styles.overlay}>
+          <View style={styles.widgetContent}>
+            <Text style={styles.widgetTitle}>{item.title}</Text>
+            <Text style={styles.widgetDescription}>{item.description}</Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => onPlayPause(item.id)}
+            style={styles.playButton}
+          >
+            <FontAwesome
+              name={isPlaying ? "pause" : "play"}
+              size={22}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 export default function HomeScreen() {
   const user = auth.currentUser;
-  const displayName = user?.email?.split('@')[0] || 'Dostum';
+  const displayName = user?.email?.split("@")[0] || "Dostum";
 
-  const [sound, setSound] = useState<Audio.Sound | undefined>(undefined);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
 
-  async function playPauseSound() {
+  async function playPauseSound(itemId: string) {
     try {
-      if (isPlaying && sound) {
+      if (sound && playingId === itemId) {
         await sound.pauseAsync();
-        setIsPlaying(false);
-      } else if (sound) {
-        await sound.playAsync();
-        setIsPlaying(true);
-      } else {
-        console.log('Loading Sound from local asset');
-        const { sound: newSound } = await Audio.Sound.createAsync(
-           require('../../assets/audio/meditation-sound.mp3')
-        );
-        setSound(newSound);
-        setIsPlaying(true);
-        console.log('Playing Sound');
-        await newSound.playAsync();
+        setPlayingId(null);
+        return;
       }
-    } catch (error) {
-        console.error("Error with sound:", error);
+
+      // varsa önceki sesi kapat
+      if (sound) await sound.unloadAsync();
+
+      const currentItem = meditations.find((m) => m.id === itemId);
+      if (!currentItem) return;
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        currentItem.audio
+      );
+      setSound(newSound);
+      setPlayingId(itemId);
+      await newSound.playAsync();
+    } catch (err) {
+      console.error("Sound error:", err);
     }
   }
 
+  // 🔧 Cleanup (Promise dönmeden)
   useEffect(() => {
-    return sound
-      ? () => {
-          console.log('Unloading Sound');
-          sound.unloadAsync();
-        }
-      : undefined;
+    return () => {
+      if (sound) {
+        // Fire & forget (Promise beklenmez)
+        sound.unloadAsync().catch((e) =>
+          console.warn("Sound unload failed:", e)
+        );
+      }
+    };
   }, [sound]);
 
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={{paddingHorizontal: 20, paddingTop: 80}}
-    >
-      <Text style={styles.welcomeTitle}>Hoş Geldin, {displayName}</Text>
-      <Text style={styles.welcomeSubtitle}>Günün önerisi aşağıda seni bekliyor.</Text>
-
-      <View style={styles.widgetContainer}>
-        <TouchableOpacity onPress={playPauseSound} activeOpacity={0.9}>
-          
-          {isPlaying ? (
-            <Video
-              source={require('../../assets/videos/forest-loop.mp4')}
-              style={styles.widgetBackground}
-              isMuted={true}
-              isLooping={true}
-              shouldPlay={true}
-              resizeMode={ResizeMode.COVER} // <<< DEĞİŞİKLİK BURADA
-            />
-          ) : (
-            <ImageBackground
-              source={require('../../assets/images/forest-bg.jpg')}
-              style={styles.widgetBackground}
-              imageStyle={{ borderRadius: 20 }}
-            />
-          )}
-
-          <View style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]}>
-            <View style={styles.overlay} />
-            <View style={styles.widgetContent}>
-              <Text style={styles.widgetTitle}>5 Dakikalık Farkındalık</Text>
-              <Text style={styles.widgetDescription}>Zihnini an'a getir ve nefesine odaklan.</Text>
-              <View style={styles.playButton}>
-                <FontAwesome name={isPlaying ? "pause" : "play"} size={24} color="#FFFFFF" />
-              </View>
-            </View>
-          </View>
-
-        </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.welcomeTitle}>Hoş Geldin, {displayName}</Text>
+        <Text style={styles.welcomeSubtitle}>
+          Günün önerisi aşağıda seni bekliyor.
+        </Text>
       </View>
-    </ScrollView>
+
+      <Text style={styles.sectionTitle}>Ruhunu Dinlendir</Text>
+
+      <FlatList
+        data={meditations}
+        keyExtractor={(item) => item.id}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={CARD_WIDTH + SPACING}
+        contentContainerStyle={{
+          paddingHorizontal: (width - CARD_WIDTH) / 2,
+        }}
+        renderItem={({ item }) => (
+          <MeditationCard
+            item={item}
+            isPlaying={playingId === item.id}
+            onPlayPause={playPauseSound}
+          />
+        )}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: "#F5F5F5",
+  },
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 80,
   },
   welcomeTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    fontSize: 26,
+    fontWeight: "bold",
+    color: "#222",
   },
   welcomeSubtitle: {
     fontSize: 16,
-    color: '#555',
+    color: "#666",
+    marginTop: 5,
     marginBottom: 30,
   },
-  widgetContainer: {
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#222",
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  cardContainer: {
+    width: CARD_WIDTH,
+    height: 220,
+    marginRight: SPACING,
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowColor: "#000",
     shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowRadius: 8,
+    elevation: 5,
+    backgroundColor: "#000",
+    overflow: "hidden",
   },
   widgetBackground: {
-    width: '100%',
-    height: 200,
-    borderRadius: 20,
-    overflow: 'hidden',
+    flex: 1,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "space-between",
+    padding: 20,
   },
   widgetContent: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   widgetTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#fff",
     marginBottom: 5,
   },
   widgetDescription: {
     fontSize: 14,
-    color: '#E0E0E0',
+    color: "#ddd",
   },
   playButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 20,
     right: 20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingLeft: 4,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
