@@ -1,8 +1,10 @@
 import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Slider from "@react-native-community/slider";
 import { Audio } from "expo-av";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useVideoPlayer } from "expo-video";
+import { VideoView, useVideoPlayer } from "expo-video";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -13,11 +15,15 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { auth } from "../../firebaseConfig";
 
-// --- 🪷 Meditasyon Verileri ---
+const { width } = Dimensions.get("window");
+const CARD_WIDTH = width * 0.72;
+const SPACING = 16;
+
+// 🌿 Meditasyon verileri
 const meditations = [
   {
     id: "1",
@@ -26,6 +32,7 @@ const meditations = [
     audio: require("../../assets/audio/meditation-sound.mp3"),
     video: require("../../assets/videos/forest-loop.mp4"),
     image: require("../../assets/images/forest-bg.jpg"),
+    tags: ["relax", "focus", "balance"],
   },
   {
     id: "2",
@@ -34,6 +41,7 @@ const meditations = [
     audio: require("../../assets/audio/ocean-meditation.mp3"),
     video: require("../../assets/videos/oceanvideo1.mp4"),
     image: require("../../assets/images/ocean.jpg"),
+    tags: ["relax", "sleep"],
   },
   {
     id: "3",
@@ -42,10 +50,20 @@ const meditations = [
     audio: require("../../assets/audio/rain-sound.mp3"),
     video: require("../../assets/videos/rainvideo1.mp4"),
     image: require("../../assets/images/rainy.jpg"),
+    tags: ["sleep", "balance"],
+  },
+  {
+    id: "4",
+    title: "Güneş Işığı",
+    description: "Yeni güne enerjiyle başla.",
+    audio: require("../../assets/audio/sunrise.mp3"),
+    video: require("../../assets/videos/sunrise.mp4"),
+    image: require("../../assets/images/sunrise.jpg"),
+    tags: ["motivation", "focus"],
   },
 ];
 
-// --- 💬 Günün Sözleri ---
+// 💬 Günün Sözleri
 const dailyQuotes = [
   "“Kendine nazik ol, çünkü sen de büyüyorsun.” 🌱",
   "“Huzur, dışarıda değil — içinde başlar.” ☁️",
@@ -54,125 +72,76 @@ const dailyQuotes = [
   "“Zihnin sakinleştiğinde, dünya da sakinleşir.” 🌊",
 ];
 
-const { width } = Dimensions.get("window");
-const CARD_WIDTH = width * 0.75;
-const SPACING = 16;
-
 // 🎧 Meditasyon Kartı
-const MeditationCard = ({ item, isPlaying, onPlayPause }: any) => {
-  const player = useVideoPlayer(item.video, (p) => {
-    p.loop = true;
-    p.muted = true;
-  });
-  useEffect(() => {
-    if (isPlaying) player.play();
-    else player.pause();
-  }, [isPlaying]);
-
-  return (
-    <TouchableOpacity
-      onPress={() => onPlayPause(item.id)}
-      activeOpacity={0.9}
-      style={styles.cardContainer}
+const MeditationCard = ({ item, onSelect }: any) => (
+  <TouchableOpacity
+    onPress={() => onSelect(item)}
+    activeOpacity={0.9}
+    style={styles.cardContainer}
+  >
+    <ImageBackground
+      source={item.image}
+      style={styles.cardImage}
+      imageStyle={{ borderRadius: 20 }}
     >
-      <ImageBackground
-        source={item.image}
-        style={{ flex: 1 }}
-        imageStyle={{ borderRadius: 20 }}
+      <LinearGradient
+        colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.6)"]}
+        style={styles.cardOverlay}
       >
-        <LinearGradient
-          colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.7)"]}
-          style={styles.overlay}
-        >
-          <Text style={styles.widgetTitle}>{item.title}</Text>
-          <Text style={styles.widgetDescription}>{item.description}</Text>
+        <Text style={styles.cardTitle}>{item.title}</Text>
+        <Text style={styles.cardDesc}>{item.description}</Text>
+      </LinearGradient>
+    </ImageBackground>
+  </TouchableOpacity>
+);
 
-          <TouchableOpacity
-            onPress={() => onPlayPause(item.id)}
-            style={styles.playButton}
-          >
-            <FontAwesome
-              name={isPlaying ? "pause" : "play"}
-              size={20}
-              color="#fff"
-            />
-          </TouchableOpacity>
-        </LinearGradient>
-      </ImageBackground>
-    </TouchableOpacity>
-  );
-};
+// 🪴 Bağımlılıkla Mücadele
+const HabitRecoveryCard = () => {
+  const [streak, setStreak] = useState(0);
+  const [todayCompleted, setTodayCompleted] = useState(false);
 
-// 🧘 Nefes Egzersizi
-const BreathExercise = () => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const [phase, setPhase] = useState("Hazırsan başlayalım 🌿");
-  const [started, setStarted] = useState(false);
-  const [finished, setFinished] = useState(false);
+  useEffect(() => {
+    (async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const storedDate = await AsyncStorage.getItem("habit_lastDate");
+      const storedStreak = await AsyncStorage.getItem("habit_streak");
+      if (storedDate === today) setTodayCompleted(true);
+      if (storedStreak) setStreak(parseInt(storedStreak));
+    })();
+  }, []);
 
-  const startCycle = () => {
-    setStarted(true);
-    setFinished(false);
-
-    let cycleCount = 0;
-    const breathe = () => {
-      if (cycleCount >= 4) {
-        setPhase("Harika iş çıkardın 🍃");
-        setFinished(true);
-        return;
-      }
-
-      setPhase("Nefes al...");
-      Animated.timing(scaleAnim, {
-        toValue: 1.5,
-        duration: 4000,
-        useNativeDriver: true,
-      }).start(() => {
-        setPhase("Tut...");
-        setTimeout(() => {
-          setPhase("Ver...");
-          Animated.timing(scaleAnim, {
-            toValue: 1,
-            duration: 4000,
-            useNativeDriver: true,
-          }).start(() => {
-            cycleCount++;
-            breathe();
-          });
-        }, 3000);
-      });
-    };
-    breathe();
+  const completeToday = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await AsyncStorage.setItem("habit_lastDate", today);
+    const newStreak = streak + 1;
+    setStreak(newStreak);
+    await AsyncStorage.setItem("habit_streak", newStreak.toString());
+    setTodayCompleted(true);
   };
 
   return (
-    <LinearGradient colors={["#BFD8C3", "#A8CBA8", "#9BB89F"]} style={styles.breathContainer}>
-      <Text style={styles.breathTitle}>🫧 1 Dakikalık Nefes Egzersizi</Text>
-      <Text style={styles.breathSubtitle}>Zihnini sakinleştirmek için nefesine odaklan.</Text>
-
-      <View style={styles.breathCircleContainer}>
-        <Animated.View style={[styles.breathCircle, { transform: [{ scale: scaleAnim }] }]} />
-        <Text style={styles.breathPhase}>{phase}</Text>
+    <LinearGradient colors={["#B6D7B9", "#9FC8A3"]} style={styles.habitContainer}>
+      <Text style={styles.habitTitle}>🪴 Bağımlılıkla Mücadele</Text>
+      <Text style={styles.habitSubtitle}>
+        {todayCompleted ? "Bugün de başardın 🌿" : "Bugün küçük bir adım at 🍃"}
+      </Text>
+      <View style={styles.progressBar}>
+        <View
+          style={[styles.progressFill, { width: `${(streak % 7) * (100 / 7)}%` }]}
+        />
       </View>
-
-      {!started && (
-        <TouchableOpacity style={styles.breathButton} onPress={startCycle}>
-          <Text style={styles.breathButtonText}>Başla</Text>
-        </TouchableOpacity>
-      )}
-
-      {finished && (
-        <TouchableOpacity
-          style={[styles.breathButton, { backgroundColor: "#6DAF73" }]}
-          onPress={() => {
-            setStarted(false);
-            setPhase("Hazırsan başlayalım 🌿");
-            setFinished(false);
-          }}
-        >
-          <Text style={styles.breathButtonText}>Tekrarla</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={styles.habitButton}
+        onPress={todayCompleted ? async () => {
+          await AsyncStorage.multiRemove(["habit_lastDate", "habit_streak"]);
+          setStreak(0);
+          setTodayCompleted(false);
+        } : completeToday}
+      >
+        <Text style={styles.habitButtonText}>
+          {todayCompleted ? "Sıfırla" : "Bugün Başladım"}
+        </Text>
+      </TouchableOpacity>
     </LinearGradient>
   );
 };
@@ -182,215 +151,259 @@ export default function HomeScreen() {
   const user = auth.currentUser;
   const displayName = user?.email?.split("@")[0] || "Dostum";
 
+  const [activeMeditation, setActiveMeditation] = useState(meditations[0]);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const [dailyMeditation, setDailyMeditation] = useState<any | null>(null);
-  const [liked, setLiked] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.5);
   const [dailyQuote, setDailyQuote] = useState("");
-  const [moodMessage, setMoodMessage] = useState("");
+  const [selectedMood, setSelectedMood] = useState("all");
+  const miniBarAnim = useRef(new Animated.Value(0)).current;
 
-  const heartAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) setMoodMessage("Sabah huzuru seninle 🌅");
-    else if (hour < 18) setMoodMessage("Öğleden sonra sakinliği 🌤️");
-    else setMoodMessage("Akşam dinginliği 🌙");
-
-    const randomQuote = dailyQuotes[Math.floor(Math.random() * dailyQuotes.length)];
-    setDailyQuote(randomQuote);
-
-    Animated.timing(fadeAnim, { toValue: 1, duration: 900, useNativeDriver: true }).start();
-  }, []);
-
-  const animateHeart = () => {
-    setLiked(!liked);
-    Animated.sequence([
-      Animated.spring(heartAnim, { toValue: 1, useNativeDriver: true }),
-      Animated.spring(heartAnim, { toValue: 0, useNativeDriver: true }),
-    ]).start();
-  };
-
-  const animateRefresh = () => {
-    Animated.sequence([
-      Animated.timing(rotateAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.timing(rotateAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
-    ]).start();
-  };
-
-  const loadDailyMeditation = async (forceNew = false) => {
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const storedDate = await AsyncStorage.getItem("dailyMeditationDate");
-    const storedMeditation = await AsyncStorage.getItem("dailyMeditation");
-
-    if (!forceNew && storedDate === todayKey && storedMeditation) {
-      const parsed = JSON.parse(storedMeditation);
-      if (parsed.image && parsed.audio && parsed.video) {
-        setDailyMeditation(parsed);
-        return;
-      }
-    }
-    const randomMeditation = meditations[Math.floor(Math.random() * meditations.length)];
-    setDailyMeditation(randomMeditation);
-    await AsyncStorage.setItem("dailyMeditation", JSON.stringify(randomMeditation));
-    await AsyncStorage.setItem("dailyMeditationDate", todayKey);
-  };
-
-  useEffect(() => {
-    loadDailyMeditation();
-  }, []);
-
-  async function playPauseSound(itemId: string) {
-    try {
-      if (sound && playingId === itemId) {
-        await sound.pauseAsync();
-        setPlayingId(null);
-        return;
-      }
-      if (sound) await sound.unloadAsync();
-
-      const currentItem = meditations.find((m) => m.id === itemId);
-      if (!currentItem) return;
-
-      const { sound: newSound } = await Audio.Sound.createAsync(currentItem.audio);
-      setSound(newSound);
-      setPlayingId(itemId);
-      await newSound.playAsync();
-    } catch (err) {
-      console.error("Sound error:", err);
-    }
-  }
-
-  const rotation = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
+  const player = useVideoPlayer(activeMeditation.video, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
   });
 
+  const moods = [
+    { key: "all", label: "Hepsi 🌍" },
+    { key: "relax", label: "Rahatlamak 😌" },
+    { key: "sleep", label: "Uyumak 🌙" },
+    { key: "focus", label: "Odaklanmak 🧘" },
+    { key: "balance", label: "Denge ❤️" },
+    { key: "motivation", label: "Motivasyon 🌅" },
+  ];
+
+  const filteredMeditations =
+    selectedMood === "all"
+      ? meditations
+      : meditations.filter((m) => m.tags.includes(selectedMood));
+
+  useEffect(() => {
+    setDailyQuote(
+      dailyQuotes[Math.floor(Math.random() * dailyQuotes.length)]
+    );
+  }, []);
+
+  useEffect(() => {
+    Animated.timing(miniBarAnim, {
+      toValue: isPlaying ? 1 : 0,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, [isPlaying]);
+
+  const handleSelectMeditation = async (item: any) => {
+    setActiveMeditation(item);
+    if (sound) {
+      await sound.unloadAsync();
+      setSound(null);
+    }
+    setIsPlaying(false);
+  };
+
+  const playPause = async () => {
+    if (sound && isPlaying) {
+      await sound.pauseAsync();
+      setIsPlaying(false);
+      return;
+    }
+    if (!sound) {
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        activeMeditation.audio
+      );
+      setSound(newSound);
+      await newSound.setVolumeAsync(volume);
+      await newSound.playAsync();
+      setIsPlaying(true);
+    } else {
+      await sound.playAsync();
+      setIsPlaying(true);
+    }
+  };
+
+  const changeVolume = async (v: number) => {
+    setVolume(v);
+    if (sound) await sound.setVolumeAsync(v);
+  };
+
   return (
-    <LinearGradient colors={["#CFE8D3", "#B4D7B9", "#9FC49F"]} style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Üst Karşılama */}
+    <View style={styles.container}>
+      {/* 🎬 Arka Plan Video */}
+      <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
+
+      <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.headerContainer}>
-          <Text style={styles.welcomeTitle}>Hoş Geldin, {displayName}</Text>
-          <Text style={styles.welcomeSubtitle}>Bugün doğa senin yanında 🌿</Text>
+          <Text style={styles.welcomeTitle}>DERD’e Hoş Geldin, {displayName} 🌿</Text>
+          <Text style={styles.welcomeSubtitle}>Bugün biraz huzur seninle olsun.</Text>
         </View>
 
-        {/* 🌞 Günün Meditasyonu */}
-        {dailyMeditation && (
-          <View style={styles.dailyContainer}>
-            <View style={styles.dailyHeader}>
-              <Text style={styles.dailyTitle}>🌞 Günün Meditasyonu</Text>
-              <Animated.View style={{ transform: [{ rotate: rotation }] }}>
-                <TouchableOpacity onPress={() => { animateRefresh(); loadDailyMeditation(true); }}>
-                  <FontAwesome name="refresh" size={22} color="#2E3D3A" />
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
-
-            <View style={styles.dailyCard}>
-              <ImageBackground source={dailyMeditation.image} style={styles.dailyImage} imageStyle={{ borderRadius: 20 }}>
-                <View style={styles.dailyOverlay}>
-                  <Text style={styles.dailyText}>{dailyMeditation.title}</Text>
-                  <Text style={styles.dailyDesc}>{dailyMeditation.description}</Text>
-
-                  <View style={styles.dailyButtons}>
-                    <TouchableOpacity onPress={() => playPauseSound(dailyMeditation.id)} style={styles.dailyButton}>
-                      <FontAwesome
-                        name={playingId === dailyMeditation.id ? "pause" : "play"}
-                        size={22}
-                        color="#fff"
-                      />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={animateHeart}>
-                      <Animated.View style={{
-                        transform: [{
-                          scale: heartAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.3] }),
-                        }],
-                      }}>
-                        <FontAwesome
-                          name={liked ? "heart" : "heart-o"}
-                          size={24}
-                          color={liked ? "#E94B62" : "#fff"}
-                          style={{ marginLeft: 14 }}
-                        />
-                      </Animated.View>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </ImageBackground>
-            </View>
-          </View>
-        )}
-
-        {/* 🪷 Günün Sözü */}
-        <Animated.View style={[styles.quoteBox, { opacity: fadeAnim }]}>
-          <Text style={styles.moodTitle}>{moodMessage}</Text>
-          <Text style={styles.quoteText}>{dailyQuote}</Text>
-        </Animated.View>
-
-        {/* 🌿 Diğer meditasyonlar */}
-        <Text style={styles.sectionTitle}>Ruhunu Dinlendir</Text>
-        <FlatList
-          data={meditations}
-          keyExtractor={(item) => item.id}
+        {/* 🎭 Ruh Hali Filtreleri */}
+        <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          decelerationRate="fast"
-          snapToInterval={CARD_WIDTH + SPACING}
-          contentContainerStyle={{
-            paddingHorizontal: (width - CARD_WIDTH) / 2,
-          }}
+          contentContainerStyle={styles.moodContainer}
+        >
+          {moods.map((mood) => (
+            <TouchableOpacity
+              key={mood.key}
+              onPress={() => setSelectedMood(mood.key)}
+              style={[
+                styles.moodChip,
+                selectedMood === mood.key && styles.moodChipActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.moodText,
+                  selectedMood === mood.key && styles.moodTextActive,
+                ]}
+              >
+                {mood.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* 🎧 Aktif Meditasyon */}
+        <LinearGradient
+          colors={["rgba(255,255,255,0.7)", "rgba(255,255,255,0.4)"]}
+          style={styles.activePlayer}
+        >
+          <Text style={styles.activeTitle}>{activeMeditation.title}</Text>
+          <Text style={styles.activeDesc}>{activeMeditation.description}</Text>
+
+          <View style={styles.activeControls}>
+            <TouchableOpacity onPress={playPause} style={styles.playButton}>
+              <FontAwesome name={isPlaying ? "pause" : "play"} size={22} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.volumeRow}>
+              <FontAwesome name="volume-down" size={16} color="#fff" />
+              <Slider
+                style={{ width: 100 }}
+                minimumValue={0}
+                maximumValue={1}
+                value={volume}
+                onValueChange={changeVolume}
+                minimumTrackTintColor="#fff"
+                maximumTrackTintColor="#999"
+              />
+              <FontAwesome name="volume-up" size={16} color="#fff" />
+            </View>
+          </View>
+        </LinearGradient>
+
+        {/* 🎧 Meditasyon Kartları */}
+        <Text style={styles.sectionTitle}>🎧 Önerilen Meditasyonlar</Text>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={filteredMeditations}
           renderItem={({ item }) => (
-            <MeditationCard
-              item={item}
-              isPlaying={playingId === item.id}
-              onPlayPause={playPauseSound}
-            />
+            <MeditationCard item={item} onSelect={handleSelectMeditation} />
           )}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingHorizontal: 20 }}
         />
 
-        {/* 🧘 1 Dakikalık Nefes Egzersizi */}
-        <BreathExercise />
+        <HabitRecoveryCard />
+
+        <View style={styles.quoteBox}>
+          <Text style={styles.quoteText}>{dailyQuote}</Text>
+        </View>
       </ScrollView>
-    </LinearGradient>
+
+      {/* 🎵 Mini Bar */}
+      <Animated.View
+        style={[
+          styles.miniBar,
+          {
+            transform: [
+              {
+                translateY: miniBarAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [100, 0],
+                }),
+              },
+            ],
+            opacity: miniBarAnim,
+          },
+        ]}
+      >
+        <LinearGradient colors={["#A8CBA8", "#8DBE91"]} style={styles.miniInner}>
+          <Text style={styles.miniTitle}>{activeMeditation.title}</Text>
+          <View style={styles.miniControls}>
+            <TouchableOpacity onPress={playPause}>
+              <FontAwesome name={isPlaying ? "pause" : "play"} size={20} color="#fff" />
+            </TouchableOpacity>
+            <Slider
+              style={{ width: 100 }}
+              minimumValue={0}
+              maximumValue={1}
+              value={volume}
+              onValueChange={changeVolume}
+              minimumTrackTintColor="#fff"
+              maximumTrackTintColor="#ccc"
+            />
+          </View>
+        </LinearGradient>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerContainer: { paddingHorizontal: 20, paddingTop: 70 },
-  welcomeTitle: { fontSize: 26, fontWeight: "bold", color: "#1B331D" },
-  welcomeSubtitle: { fontSize: 15, color: "#355E3B", marginTop: 5, marginBottom: 25 },
-  dailyContainer: { paddingHorizontal: 20 },
-  dailyHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  dailyTitle: { fontSize: 22, fontWeight: "bold", color: "#2E3D3A" },
-  dailyCard: { borderRadius: 20, overflow: "hidden", height: 210, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, elevation: 4 },
-  dailyImage: { flex: 1, justifyContent: "flex-end" },
-  dailyOverlay: { backgroundColor: "rgba(0,0,0,0.4)", padding: 18, borderRadius: 20 },
-  dailyText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
-  dailyDesc: { color: "#ddd", fontSize: 14, marginTop: 4 },
-  dailyButtons: { flexDirection: "row", alignItems: "center", marginTop: 10 },
-  dailyButton: { backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 20, width: 45, height: 45, justifyContent: "center", alignItems: "center" },
-  quoteBox: { backgroundColor: "rgba(255,255,255,0.35)", borderRadius: 16, padding: 18, marginHorizontal: 20, marginVertical: 25 },
-  moodTitle: { fontSize: 18, fontWeight: "bold", color: "#2E3D3A", marginBottom: 6 },
-  quoteText: { fontSize: 15, color: "#3D4F3D", fontStyle: "italic" },
-  sectionTitle: { fontSize: 22, fontWeight: "bold", color: "#1C3024", paddingHorizontal: 20, marginTop: 10, marginBottom: 20 },
-  cardContainer: { width: CARD_WIDTH, height: 220, marginRight: SPACING, borderRadius: 20, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8, elevation: 5, backgroundColor: "#000", overflow: "hidden" },
-  overlay: { flex: 1, justifyContent: "flex-end", borderRadius: 20, padding: 20 },
-  widgetTitle: { fontSize: 20, fontWeight: "bold", color: "#fff" },
-  widgetDescription: { fontSize: 14, color: "#ddd", marginTop: 4 },
-  playButton: { position: "absolute", top: 15, right: 15, backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 20, width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-
-  // 🧘 Nefes Stilleri
-  breathContainer: { marginHorizontal: 20, marginTop: 35, borderRadius: 25, padding: 20, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
-  breathTitle: { fontSize: 22, fontWeight: "bold", color: "#2E3D3A", marginBottom: 6 },
-  breathSubtitle: { fontSize: 15, color: "#3D4F3D", marginBottom: 25, textAlign: "center" },
-  breathCircleContainer: { justifyContent: "center", alignItems: "center", height: 220 },
-  breathCircle: { width: 100, height: 100, borderRadius: 100, backgroundColor: "rgba(255,255,255,0.3)" },
-  breathPhase: { position: "absolute", fontSize: 20, fontWeight: "600", color: "#2E3D3A" },
-  breathButton: { backgroundColor: "#7BAE7F", paddingVertical: 12, paddingHorizontal: 40, borderRadius: 25, marginTop: 15 },
-  breathButtonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  container: { flex: 1, backgroundColor: "#CFE8D3" },
+  headerContainer: { paddingTop: 70, paddingHorizontal: 20 },
+  welcomeTitle: { fontSize: 24, fontWeight: "bold", color: "#1B331D" },
+  welcomeSubtitle: { fontSize: 15, color: "#355E3B", marginBottom: 25 },
+  moodContainer: { paddingHorizontal: 20, marginBottom: 10 },
+  moodChip: {
+    backgroundColor: "rgba(255,255,255,0.4)",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  moodChipActive: { backgroundColor: "#7BAE7F" },
+  moodText: { color: "#2E3D3A", fontWeight: "600" },
+  moodTextActive: { color: "#fff" },
+  activePlayer: { margin: 20, borderRadius: 20, padding: 20, alignItems: "center" },
+  activeTitle: { fontSize: 22, fontWeight: "bold", color: "#1C3024" },
+  activeDesc: { fontSize: 15, color: "#2E3D3A", marginTop: 5 },
+  activeControls: { flexDirection: "row", alignItems: "center", marginTop: 15 },
+  playButton: {
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 25,
+    padding: 10,
+    marginRight: 15,
+  },
+  volumeRow: { flexDirection: "row", alignItems: "center" },
+  sectionTitle: { fontSize: 20, fontWeight: "bold", color: "#1C3024", marginLeft: 20, marginVertical: 10 },
+  cardContainer: { width: CARD_WIDTH, height: 180, marginRight: SPACING },
+  cardImage: { flex: 1, borderRadius: 20, overflow: "hidden" },
+  cardOverlay: { flex: 1, justifyContent: "flex-end", padding: 15, borderRadius: 20 },
+  cardTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  cardDesc: { color: "#ddd", fontSize: 13, marginTop: 3 },
+  habitContainer: { marginHorizontal: 20, marginTop: 25, borderRadius: 20, padding: 20, alignItems: "center" },
+  habitTitle: { fontSize: 20, fontWeight: "bold", color: "#2E3D3A" },
+  habitSubtitle: { fontSize: 15, color: "#3D4F3D", marginVertical: 10 },
+  progressBar: { width: "100%", height: 10, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.4)", marginVertical: 10 },
+  progressFill: { height: "100%", backgroundColor: "#6DAF73", borderRadius: 10 },
+  habitButton: { backgroundColor: "#7BAE7F", paddingVertical: 10, paddingHorizontal: 35, borderRadius: 25 },
+  habitButtonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  quoteBox: { backgroundColor: "rgba(255,255,255,0.35)", borderRadius: 16, padding: 18, margin: 20 },
+  quoteText: { fontSize: 15, color: "#3D4F3D", fontStyle: "italic", textAlign: "center" },
+  miniBar: { position: "absolute", bottom: 0, left: 0, right: 0, height: 70 },
+  miniInner: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  miniTitle: { color: "#fff", fontWeight: "600" },
+  miniControls: { flexDirection: "row", alignItems: "center", gap: 8 },
 });
+
