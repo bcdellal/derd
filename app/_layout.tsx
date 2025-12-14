@@ -7,8 +7,9 @@ import {
   Animated,
   Image,
   StyleSheet,
-  Text
+  Text,
 } from "react-native";
+import { AudioPlayerProvider } from "../context/AudioPlayerContext";
 import { auth } from "../firebaseConfig";
 
 export default function RootLayout() {
@@ -18,7 +19,6 @@ export default function RootLayout() {
   const [initializing, setInitializing] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
 
-  // --- Animasyonlar (Splash için) ---
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
@@ -37,36 +37,30 @@ export default function RootLayout() {
     ]).start();
   }, []);
 
-  // --- Firebase Auth Listener ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setInitializing(false);
 
       if (firebaseUser) {
-        // ✅ Kullanıcı giriş yaptıysa tab ekranına yönlendir
         if (!segments.includes("(tabs)")) {
           router.replace("/(tabs)" as any);
         }
       } else {
-        // ✅ Kullanıcı giriş yapmamışsa ama register ekranındaysa yönlendirme yapma
         if (
           !segments.includes("login") &&
-          !segments.includes("register") &&
-          !segments.includes("splash")
+          !segments.includes("register")
         ) {
           router.replace("/login" as any);
         }
       }
 
-      // ✅ Splash kısa süreli görünsün
       setTimeout(() => setShowSplash(false), 1000);
     });
 
     return unsubscribe;
-  }, []); // dependency kaldırıldı — sürekli yönlendirmesin
+  }, []);
 
-  // --- Splash Ekranı ---
   if (initializing || showSplash) {
     return (
       <LinearGradient colors={["#2c3e50", "#121212"]} style={styles.container}>
@@ -91,30 +85,27 @@ export default function RootLayout() {
     );
   }
 
-  // --- Normal Uygulama Akışı ---
   return (
-    <>
+    <AudioPlayerProvider>
       <LinearGradient
         colors={["#2c3e50", "#121212"]}
         style={StyleSheet.absoluteFill}
       />
+
       <Stack
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: "transparent" },
         }}
       >
-        {/* Ana sekme ekranı */}
         <Stack.Screen name="(tabs)" />
-        {/* Login & Register */}
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
       </Stack>
-    </>
+    </AudioPlayerProvider>
   );
 }
 
-// --- Stiller ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -126,7 +117,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   logo: {
-    width: 180, // 🔥 logo biraz büyütüldü
+    width: 180,
     height: 180,
     marginBottom: 20,
   },
@@ -134,13 +125,11 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 42,
     fontWeight: "bold",
-    letterSpacing: 1,
   },
   subtitle: {
     color: "#ccc",
     fontSize: 16,
     marginTop: 10,
     textAlign: "center",
-    width: "90%",
   },
 });

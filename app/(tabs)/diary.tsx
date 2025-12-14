@@ -26,33 +26,48 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import { auth, db } from "../../firebaseConfig"; // initializeFirestore + persistentLocalCache aktif olmalı
+import { auth, db } from "../../firebaseConfig";
 
+/* -------------------- TYPES -------------------- */
 interface DiaryEntry {
   id?: string;
   title: string;
   content: string;
+  mood: string; // 🔑 SADECE STRING
   createdAt: Date | null;
   userId?: string;
-  temp?: boolean; // offline entry’ler için işaret
+  temp?: boolean;
 }
 
+const MOODS = [
+  { key: "happy", label: "Mutlu", emoji: "😊" },
+  { key: "calm", label: "Sakin", emoji: "😌" },
+  { key: "sad", label: "Üzgün", emoji: "😔" },
+  { key: "tense", label: "Gergin", emoji: "😠" },
+  { key: "tired", label: "Yorgun", emoji: "😴" },
+];
+
+const getMoodByKey = (key: string) =>
+  MOODS.find((m) => m.key === key);
+
+/* -------------------- SCREEN -------------------- */
 export default function DiaryScreen() {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isConnected, setIsConnected] = useState<boolean>(true);
+  const [isConnected, setIsConnected] = useState(true);
 
-  // 🔌 Ağ bağlantısını dinle
+  /* ----------- NETWORK ----------- */
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
+    const unsub = NetInfo.addEventListener((state) => {
       setIsConnected(!!state.isConnected);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
-  // 🔁 Firestore + Offline senkronizasyon
+  /* ----------- FIRESTORE LISTENER ----------- */
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -63,113 +78,113 @@ export default function DiaryScreen() {
       orderBy("createdAt", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const entriesData: DiaryEntry[] = [];
-      querySnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.createdAt) {
-          entriesData.push({
+    const unsub = onSnapshot(q, (snap) => {
+      const data: DiaryEntry[] = [];
+      snap.forEach((docSnap) => {
+        const d = docSnap.data();
+        if (d.createdAt) {
+          data.push({
             id: docSnap.id,
-            title: data.title,
-            content: data.content,
-            createdAt: data.createdAt.toDate(),
+            title: d.title,
+            content: d.content,
+            mood: d.mood,
+            createdAt: d.createdAt.toDate(),
           });
         }
       });
-      setEntries(entriesData);
+      setEntries(data);
     });
 
-    return () => unsubscribe();
-  }, [auth.currentUser]);
+    return () => unsub();
+  }, []);
 
-  // 🧭 Uygulama açıldığında offline entry’leri Firestore’a yükle
+  /* ----------- OFFLINE SYNC ----------- */
   useEffect(() => {
-    const syncOfflineEntries = async () => {
+    const syncOffline = async () => {
+      if (!isConnected || !auth.currentUser) return;
+
       const stored = await AsyncStorage.getItem("offlineEntries");
-      if (stored && auth.currentUser && isConnected) {
-        const entries = JSON.parse(stored) as DiaryEntry[];
-        for (const e of entries) {
-          await addDoc(collection(db, "diaries"), {
-            title: e.title,
-            content: e.content,
-            createdAt: serverTimestamp(),
-            userId: auth.currentUser.uid,
-          });
-        }
-        await AsyncStorage.removeItem("offlineEntries");
-        console.log("✅ Offline kayıtlar senkronize edildi.");
+      if (!stored) return;
+
+      const parsed: DiaryEntry[] = JSON.parse(stored);
+      for (const e of parsed) {
+        await addDoc(collection(db, "diaries"), {
+          title: e.title,
+          content: e.content,
+          mood: e.mood,
+          createdAt: serverTimestamp(),
+          userId: auth.currentUser.uid,
+        });
       }
+      await AsyncStorage.removeItem("offlineEntries");
     };
-    syncOfflineEntries();
+    syncOffline();
   }, [isConnected]);
 
-  // 💾 Günlük kaydet
+  /* ----------- SAVE ----------- */
   const handleSave = async () => {
-    if (title.trim().length === 0 || content.trim().length === 0) {
-      Alert.alert("Error", "Please fill in both title and content.");
+    if (!title.trim() || !content.trim()) {
+      Alert.alert("Uyarı", "Başlık ve içerik boş olamaz.");
+      return;
+    }
+    if (!selectedMood) {
+      Alert.alert("Uyarı", "Lütfen ruh halini seç.");
       return;
     }
 
     const user = auth.currentUser;
-    if (!user) {
-      Alert.alert("Error", "You must be logged in to save an entry.");
-      return;
-    }
+    if (!user) return;
 
     try {
       if (!isConnected) {
-        // 🌙 OFFLINE MOD
-        const localEntry: DiaryEntry = {
+        const local: DiaryEntry = {
           title,
           content,
+          mood: selectedMood,
           createdAt: new Date(),
           temp: true,
         };
         const stored = await AsyncStorage.getItem("offlineEntries");
-        const updated = stored
-          ? [...JSON.parse(stored), localEntry]
-          : [localEntry];
+        const updated = stored ? [...JSON.parse(stored), local] : [local];
         await AsyncStorage.setItem("offlineEntries", JSON.stringify(updated));
-        Alert.alert(
-          "Offline Mode",
-          "Entry saved locally. It will sync when you're online."
-        );
+        Alert.alert("Offline", "Kayıt cihazda saklandı.");
       } else if (editingId) {
-        // ✏️ DÜZENLEME
-        const entryRef = doc(db, "diaries", editingId);
-        await updateDoc(entryRef, { title, content });
-        Alert.alert("Success", "Entry updated successfully!");
+        await updateDoc(doc(db, "diaries", editingId), {
+          title,
+          content,
+          mood: selectedMood,
+        });
+        Alert.alert("Başarılı", "Günlük güncellendi.");
       } else {
-        // 🌐 ONLINE YENİ ENTRY
         await addDoc(collection(db, "diaries"), {
           title,
           content,
+          mood: selectedMood,
           createdAt: serverTimestamp(),
           userId: user.uid,
         });
-        Alert.alert("Success", "Entry saved successfully!");
+        Alert.alert("Başarılı", "Günlük kaydedildi.");
       }
 
       setTitle("");
       setContent("");
+      setSelectedMood(null);
       setEditingId(null);
       Keyboard.dismiss();
-    } catch (error: any) {
-      console.error("Error saving document: ", error);
-      if (error.code === "permission-denied") {
-        Alert.alert("Access Denied", "You can only modify your own diary entries.");
-      } else {
-        Alert.alert("Error", "Could not save the entry.");
-      }
+    } catch (e) {
+      console.log(e);
+      Alert.alert("Hata", "Kayıt yapılamadı.");
     }
   };
 
-  const handleEdit = (entry: DiaryEntry) => {
-    setEditingId(entry.id!);
-    setTitle(entry.title);
-    setContent(entry.content);
+  const handleEdit = (e: DiaryEntry) => {
+    setEditingId(e.id!);
+    setTitle(e.title);
+    setContent(e.content);
+    setSelectedMood(e.mood);
   };
 
+  /* -------------------- UI -------------------- */
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -177,9 +192,25 @@ export default function DiaryScreen() {
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView>
-          <Text style={styles.header}>
-            {editingId ? "Edit Your Entry" : "How Are You Feeling Today?"}
-          </Text>
+          <Text style={styles.header}>How Are You Feeling Today?</Text>
+
+          {/* MOOD */}
+          <View style={styles.moodRow}>
+            {MOODS.map((m) => (
+              <TouchableOpacity
+                key={m.key}
+                style={[
+                  styles.moodItem,
+                  selectedMood === m.key && styles.moodActive,
+                ]}
+                onPress={() => setSelectedMood(m.key)}
+              >
+                <Text style={styles.moodEmoji}>{m.emoji}</Text>
+                <Text>{m.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <TextInput
             style={styles.inputTitle}
             placeholder="Title"
@@ -188,48 +219,51 @@ export default function DiaryScreen() {
           />
           <TextInput
             style={styles.inputContent}
-            placeholder="Write your thoughts here..."
-            multiline={true}
+            placeholder="Write your thoughts..."
+            multiline
             value={content}
             onChangeText={setContent}
           />
+
           <TouchableOpacity style={styles.button} onPress={handleSave}>
             <FontAwesome
               name={editingId ? "save" : "check"}
               size={20}
-              color="#FFFFFF"
+              color="#fff"
             />
             <Text style={styles.buttonText}>
               {editingId ? "Update Entry" : "Save Entry"}
             </Text>
           </TouchableOpacity>
+
           <View style={styles.divider} />
-          {entries.map((entry) => (
-            <View key={entry.id || entry.title} style={styles.entryContainer}>
-              <View style={styles.entryHeader}>
-                <Text style={styles.entryTitle}>{entry.title}</Text>
-                <TouchableOpacity onPress={() => handleEdit(entry)}>
-                  <FontAwesome name="pencil" size={20} color="#556B55" />
-                </TouchableOpacity>
+
+          {entries.map((e) => {
+            const mood = getMoodByKey(e.mood);
+            return (
+              <View key={e.id} style={styles.entryContainer}>
+                <View style={styles.entryHeader}>
+                  <Text style={styles.entryTitle}>
+                    {mood?.emoji} {e.title}
+                  </Text>
+                  <TouchableOpacity onPress={() => handleEdit(e)}>
+                    <FontAwesome name="pencil" size={18} color="#556B55" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.entryDate}>
+                  {e.createdAt?.toLocaleDateString()}
+                </Text>
+                <Text style={styles.entryContent}>{e.content}</Text>
               </View>
-              <Text style={styles.entryDate}>
-                {entry.createdAt
-                  ? new Date(entry.createdAt).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })
-                  : "Pending..."}
-              </Text>
-              <Text style={styles.entryContent}>{entry.content}</Text>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
 
+/* -------------------- STYLES -------------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#a9c2a9" },
   header: {
@@ -237,29 +271,42 @@ const styles = StyleSheet.create({
     fontWeight: "300",
     color: "#2F4F4F",
     textAlign: "center",
-    marginBottom: 25,
+    marginBottom: 20,
     paddingTop: 60,
   },
+  moodRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 15,
+  },
+  moodItem: {
+    alignItems: "center",
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.4)",
+    width: 65,
+  },
+  moodActive: {
+    backgroundColor: "#7BAE7F",
+  },
+  moodEmoji: { fontSize: 22 },
+
   inputTitle: {
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(255,255,255,0.5)",
     borderRadius: 15,
     padding: 15,
-    color: "#2F4F4F",
     fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 15,
     marginHorizontal: 20,
+    marginBottom: 10,
   },
   inputContent: {
-    height: 150,
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    height: 140,
+    backgroundColor: "rgba(255,255,255,0.5)",
     borderRadius: 15,
     padding: 15,
-    color: "#2F4F4F",
-    fontSize: 16,
-    textAlignVertical: "top",
-    marginBottom: 20,
     marginHorizontal: 20,
+    marginBottom: 15,
+    textAlignVertical: "top",
   },
   button: {
     flexDirection: "row",
@@ -267,35 +314,29 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 25,
     justifyContent: "center",
-    alignItems: "center",
     marginHorizontal: 20,
   },
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginLeft: 10,
-  },
+  buttonText: { color: "#fff", fontWeight: "bold", marginLeft: 10 },
+
   divider: {
     height: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
-    marginVertical: 30,
+    backgroundColor: "rgba(255,255,255,0.5)",
+    marginVertical: 25,
     marginHorizontal: 20,
   },
   entryContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(255,255,255,0.5)",
     borderRadius: 15,
     padding: 15,
     marginHorizontal: 20,
-    marginBottom: 15,
+    marginBottom: 12,
   },
   entryHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 5,
   },
-  entryTitle: { fontSize: 20, fontWeight: "bold", color: "#2F4F4F" },
-  entryDate: { fontSize: 12, color: "#556B55", marginBottom: 10 },
-  entryContent: { fontSize: 16, color: "#333333" },
+  entryTitle: { fontSize: 18, fontWeight: "bold" },
+  entryDate: { fontSize: 12, color: "#556B55", marginBottom: 6 },
+  entryContent: { fontSize: 15 },
 });
+
