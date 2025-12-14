@@ -98,6 +98,8 @@ export default function HomeScreen() {
   const player = useVideoPlayer(active.video, (p) => {
     p.loop = true;
     p.muted = true;
+    p.volume =0;
+
     p.play();
   });
 
