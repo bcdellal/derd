@@ -1,5 +1,4 @@
 import { FontAwesome } from "@expo/vector-icons";
-import { Audio } from "expo-av";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -15,12 +14,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAudioPlayer } from "../../context/AudioPlayerContext";
 import { auth } from "../../firebaseConfig";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.68;
 
-
+/* -------------------- DATA -------------------- */
 const meditations = [
   {
     id: "1",
@@ -60,7 +60,7 @@ const meditations = [
   },
 ];
 
-
+/* -------------------- CARD -------------------- */
 function RecommendedCard({ item, onSelect }: any) {
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={() => onSelect(item)}>
@@ -80,47 +80,45 @@ function RecommendedCard({ item, onSelect }: any) {
   );
 }
 
-
+/* -------------------- SCREEN -------------------- */
 export default function HomeScreen() {
   const user = auth.currentUser;
   const name = user?.email?.split("@")[0] || "Friend";
 
   const [active, setActive] = useState(meditations[0]);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [playing, setPlaying] = useState(false);
 
+  //  GLOBAL audio state (mini player bunu kullanır)
+  const { play, pause, playing, activeSession } = useAudioPlayer();
+
+  // 🎥 Video SADECE görsel (sesle ilgisi yok)
   const player = useVideoPlayer(active.video, (p) => {
     p.loop = true;
     p.muted = true;
-    p.volume =0;
-
+    p.volume = 0;
     p.play();
   });
 
+  //  Meditasyon değişince sesi durdur
   const selectMeditation = async (item: any) => {
     setActive(item);
-    if (sound) {
-      await sound.unloadAsync();
-      setSound(null);
+    if (playing) {
+      await pause();
     }
-    setPlaying(false);
   };
 
-  const playPause = async () => {
-    if (sound && playing) {
-      await sound.pauseAsync();
-      setPlaying(false);
-      return;
-    }
-
-    if (!sound) {
-      const { sound: s } = await Audio.Sound.createAsync(active.audio);
-      await s.playAsync();
-      setSound(s);
-      setPlaying(true);
+  //  Recommended Sessions → GLOBAL play
+  const handlePlayPause = async () => {
+    if (
+      activeSession &&
+      activeSession.title === active.title &&
+      playing
+    ) {
+      await pause();
     } else {
-      await sound.playAsync();
-      setPlaying(true);
+      await play({
+        title: active.title,
+        audio: active.audio,
+      });
     }
   };
 
@@ -132,6 +130,7 @@ export default function HomeScreen() {
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
+
       <BlurView intensity={55} tint="light" style={StyleSheet.absoluteFill} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -157,7 +156,10 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.startButton} onPress={playPause}>
+          <TouchableOpacity
+            style={styles.startButton}
+            onPress={handlePlayPause}
+          >
             <FontAwesome
               name={playing ? "pause" : "play"}
               size={16}
@@ -189,7 +191,7 @@ export default function HomeScreen() {
   );
 }
 
-
+/* -------------------- STYLES -------------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EAF4EC" },
 
