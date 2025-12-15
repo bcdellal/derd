@@ -15,7 +15,7 @@ const firebaseConfig = {
   measurementId: "G-2263S50WNG"
 };
 
-// Initialize Firebase
+
 const app = initializeApp(firebaseConfig);
 
 // Diğer dosyalarda kullanmak üzere servisleri dışa aktarma burda var 
