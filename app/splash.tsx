@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import { Animated, Image, StyleSheet, Text } from "react-native";
 
-export default function SplashScreen() {   // ✅ bu satır olmazsa hata verir
+export default function SplashScreen() {   //  bu satır önemli emmim
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.7)).current;

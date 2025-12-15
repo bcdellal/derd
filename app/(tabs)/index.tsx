@@ -20,9 +20,7 @@ import { auth } from "../../firebaseConfig";
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.68;
 
-/* =========================
-   MEDITATION DATA
-========================= */
+
 const meditations = [
   {
     id: "1",
@@ -62,9 +60,7 @@ const meditations = [
   },
 ];
 
-/* =========================
-   RECOMMENDED CARD
-========================= */
+
 function RecommendedCard({ item, onSelect }: any) {
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={() => onSelect(item)}>
@@ -84,9 +80,7 @@ function RecommendedCard({ item, onSelect }: any) {
   );
 }
 
-/* =========================
-   HOME SCREEN
-========================= */
+
 export default function HomeScreen() {
   const user = auth.currentUser;
   const name = user?.email?.split("@")[0] || "Friend";
@@ -195,9 +189,7 @@ export default function HomeScreen() {
   );
 }
 
-/* =========================
-   STYLES
-========================= */
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EAF4EC" },
 

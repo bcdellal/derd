@@ -28,7 +28,7 @@ export default function ProfileScreen() {
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔹 Kullanıcı bilgilerini Firestore'dan getir
+  // 🔹 Kullanıcı bilgilerini Firestoredan çekmece
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -52,7 +52,7 @@ export default function ProfileScreen() {
     fetchUserData();
   }, [user]);
 
-  // 🔹 Profil fotoğrafı seçme
+  // 🔹 Profil fotoğrafı seçme için 
   const pickImage = async () => {
     if (!user) return;
 
@@ -112,7 +112,7 @@ export default function ProfileScreen() {
     }
   };
 
-  // 🔹 Logout fonksiyonu
+  // 🔹 Logout fonksiyonu burada dönüyo
   const handleLogout = async () => {
     try {
       await signOut(auth);

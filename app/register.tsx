@@ -25,7 +25,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // --- Animasyon başlat ---
+  // Animasyon başlatmaya kenks  
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -34,7 +34,7 @@ export default function RegisterScreen() {
     }).start();
   }, []);
 
-  // --- Kayıt işlemi ---
+  // Kayıt işlemi burada  
   const handleRegister = async () => {
     if (!email.trim() || !password.trim()) {
       Alert.alert("Eksik Bilgi", "Lütfen e-posta ve şifre giriniz.");
@@ -49,7 +49,7 @@ export default function RegisterScreen() {
       );
       const user = userCredential.user;
 
-      // ✅ Firestore'da kullanıcı belgesi oluştur
+      //  Firestoreda kullanıcı belgesi oluştuanzi
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
         createdAt: new Date().toISOString(),
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
   },
   logo: {
-    width: 180, // 🔥 Daha büyük logo
+    width: 180, 
     height: 180,
     marginBottom: 25,
   },
