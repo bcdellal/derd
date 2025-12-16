@@ -2,8 +2,9 @@ import { FontAwesome } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -19,6 +20,7 @@ import { auth } from "../../firebaseConfig";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.68;
+const SQUARE_SIZE = (width - 60) / 2;
 
 /* -------------------- DATA -------------------- */
 const meditations = [
@@ -60,6 +62,15 @@ const meditations = [
   },
 ];
 
+const BREATHING_MODES = {
+  calm: { label: "Calm", inhale: 4, hold: 0, exhale: 4 },
+  relax: { label: "Relax", inhale: 4, hold: 0, exhale: 6 },
+  focus: { label: "Focus", inhale: 4, hold: 4, exhale: 4 },
+};
+
+type Phase = "Inhale" | "Hold" | "Exhale" | "Done";
+const TOTAL_CYCLES = 3;
+
 /* -------------------- CARD -------------------- */
 function RecommendedCard({ item, onSelect }: any) {
   return (
@@ -86,11 +97,8 @@ export default function HomeScreen() {
   const name = user?.email?.split("@")[0] || "Friend";
 
   const [active, setActive] = useState(meditations[0]);
-
-  //  GLOBAL audio state (mini player bunu kullanır)
   const { play, pause, playing, activeSession } = useAudioPlayer();
 
-  // 🎥 Video SADECE görsel (sesle ilgisi yok)
   const player = useVideoPlayer(active.video, (p) => {
     p.loop = true;
     p.muted = true;
@@ -98,15 +106,79 @@ export default function HomeScreen() {
     p.play();
   });
 
-  //  Meditasyon değişince sesi durdur
-  const selectMeditation = async (item: any) => {
-    setActive(item);
-    if (playing) {
-      await pause();
+  /* -------------------- BREATHING STATE -------------------- */
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const timerRef = useRef<number | null>(null);
+
+  const [breathing, setBreathing] = useState(false);
+  const [mode, setMode] = useState<keyof typeof BREATHING_MODES>("calm");
+  const [phase, setPhase] = useState<Phase>("Inhale");
+  const [seconds, setSeconds] = useState(0);
+
+  const clearTimer = () => {
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
   };
 
-  //  Recommended Sessions → GLOBAL play
+  const runPhase = (p: Phase, duration: number, scale: number) => {
+    clearTimer();
+    setPhase(p);
+    setSeconds(duration);
+
+    Animated.timing(scaleAnim, {
+      toValue: scale,
+      duration: duration * 1000,
+      useNativeDriver: true,
+    }).start();
+
+    timerRef.current = setInterval(() => {
+      setSeconds((s) => (s > 1 ? s - 1 : 0));
+    }, 1000);
+  };
+
+  useEffect(() => {
+    if (!breathing) return;
+
+    const { inhale, hold, exhale } = BREATHING_MODES[mode];
+    let cancelled = false;
+
+    const run = async () => {
+      for (let i = 0; i < TOTAL_CYCLES; i++) {
+        if (cancelled) return;
+
+        runPhase("Inhale", inhale, 1.15);
+        await wait(inhale);
+
+        if (hold > 0) {
+          runPhase("Hold", hold, 1.15);
+          await wait(hold);
+        }
+
+        runPhase("Exhale", exhale, 1);
+        await wait(exhale);
+      }
+
+      clearTimer();
+      scaleAnim.setValue(1);
+      setPhase("Done");
+      setBreathing(false);
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+      clearTimer();
+      scaleAnim.stopAnimation();
+      scaleAnim.setValue(1);
+    };
+  }, [breathing, mode]);
+
+  const wait = (s: number) =>
+    new Promise((res) => setTimeout(res, s * 1000));
+
   const handlePlayPause = async () => {
     if (
       activeSession &&
@@ -115,26 +187,20 @@ export default function HomeScreen() {
     ) {
       await pause();
     } else {
-      await play({
-        title: active.title,
-        audio: active.audio,
-      });
+      await play({ title: active.title, audio: active.audio });
     }
   };
 
   return (
     <View style={styles.container}>
-      {/* BACKGROUND VIDEO */}
       <VideoView
         player={player}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
-
       <BlurView intensity={55} tint="light" style={StyleSheet.absoluteFill} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* HEADER */}
         <View style={styles.header}>
           <Text style={styles.welcome}>Welcome back, {name}</Text>
           <Text style={styles.subtitle}>
@@ -142,7 +208,6 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* TODAY SESSION */}
         <LinearGradient
           colors={["rgba(255,255,255,0.9)", "rgba(255,255,255,0.7)"]}
           style={styles.todayCard}
@@ -171,7 +236,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </LinearGradient>
 
-        {/* RECOMMENDED */}
         <Text style={styles.sectionTitle}>Recommended Sessions</Text>
 
         <FlatList
@@ -181,11 +245,72 @@ export default function HomeScreen() {
           keyExtractor={(i) => i.id}
           contentContainerStyle={{ paddingLeft: 20 }}
           renderItem={({ item }) => (
-            <RecommendedCard item={item} onSelect={selectMeditation} />
+            <RecommendedCard item={item} onSelect={setActive} />
           )}
         />
 
-        <View style={{ height: 140 }} />
+        {/* WIDGET ROW */}
+        <View style={styles.widgetRow}>
+          <View style={styles.squareCard}>
+            <Text style={styles.squareTitle}>Breathing Exercise</Text>
+
+            <View style={styles.modeRow}>
+              {Object.keys(BREATHING_MODES).map((key) => (
+                <TouchableOpacity
+                  key={key}
+                  onPress={() =>
+                    setMode(key as keyof typeof BREATHING_MODES)
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.modeText,
+                      mode === key && styles.modeActive,
+                    ]}
+                  >
+                    {BREATHING_MODES[key as keyof typeof BREATHING_MODES].label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Animated.View
+              style={[
+                styles.squareCircle,
+                { transform: [{ scale: scaleAnim }] },
+              ]}
+            >
+              <View style={styles.circleContent}>
+                {phase === "Done" ? (
+                  <Text style={styles.doneText}>Well Done!</Text>
+                ) : (
+                  <>
+                    <Text style={styles.phaseText}>{phase}</Text>
+                    <Text style={styles.secondsText}>{seconds}s</Text>
+                  </>
+                )}
+              </View>
+            </Animated.View>
+
+            <TouchableOpacity
+              style={styles.squareButton}
+              onPress={() => setBreathing((b) => !b)}
+            >
+              <Text style={styles.squareButtonText}>
+                {breathing ? "Stop" : "Start"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.squareCard}>
+            <Text style={styles.squareTitle}>Daily Insight</Text>
+            <Text style={styles.insightText}>
+              Consistency matters more than intensity.
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ height: 160 }} />
       </ScrollView>
     </View>
   );
@@ -202,6 +327,7 @@ const styles = StyleSheet.create({
   todayCard: { margin: 20, borderRadius: 24, padding: 20 },
   todayRow: { flexDirection: "row", gap: 14 },
   todayImage: { width: 64, height: 64, borderRadius: 14 },
+
   todayTitle: { fontSize: 18, fontWeight: "700", color: "#1C3024" },
   todayDesc: { fontSize: 14, color: "#2E3D3A" },
   todayMeta: { fontSize: 12, color: "#5E7C64", marginTop: 4 },
@@ -216,7 +342,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  startText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  startText: { color: "#fff", fontWeight: "600" },
 
   sectionTitle: {
     fontSize: 20,
@@ -224,6 +350,73 @@ const styles = StyleSheet.create({
     color: "#1C3024",
     marginLeft: 20,
     marginBottom: 12,
+  },
+
+  widgetRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    marginTop: 12,
+  },
+
+  squareCard: {
+    width: SQUARE_SIZE,
+    height: SQUARE_SIZE,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderRadius: 18,
+    padding: 10,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  squareTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1C3024",
+  },
+
+  modeRow: { flexDirection: "row", gap: 6 },
+
+  modeText: { fontSize: 11, color: "#355E3B", fontWeight: "600" },
+  modeActive: { color: "#1B331D" },
+
+  squareCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#7BAE7F",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  circleContent: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  phaseText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  secondsText: { color: "#fff", fontSize: 11 },
+
+  doneText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 13,
+    textAlign: "center",
+  },
+
+  squareButton: {
+    backgroundColor: "#556B55",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  squareButtonText: { color: "#fff", fontSize: 11, fontWeight: "600" },
+
+  insightText: {
+    textAlign: "center",
+    color: "#355E3B",
+    fontSize: 12,
   },
 
   recImage: {
