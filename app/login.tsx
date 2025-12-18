@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
   },
   logo: {
-    width: 200, // 🔥 büyütüldü
+    width: 200, 
     height: 200,
     marginBottom: 35,
   },

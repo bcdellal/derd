@@ -1,4 +1,5 @@
 import { FontAwesome } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -20,12 +21,14 @@ import { auth } from "../../firebaseConfig";
 
 import {
   requestNotificationPermission,
-  scheduleDemoNotification
+  scheduleDemoNotification,
 } from "../../lib/notifications";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.68;
 const SQUARE_SIZE = (width - 60) / 2;
+
+const CONTROL_KEY = "control_start_date";
 
 /* -------------------- DATA -------------------- */
 const meditations = [
@@ -67,12 +70,6 @@ const meditations = [
   },
 ];
 
-const BREATHING_MODES = {
-  calm: { label: "Calm", inhale: 4, hold: 0, exhale: 4 },
-  relax: { label: "Relax", inhale: 4, hold: 0, exhale: 6 },
-  focus: { label: "Focus", inhale: 4, hold: 4, exhale: 4 },
-};
-
 type Phase = "Inhale" | "Hold" | "Exhale" | "Done";
 const TOTAL_CYCLES = 3;
 
@@ -111,29 +108,58 @@ export default function HomeScreen() {
     p.play();
   });
 
-  /*3dk sonra bildirimi göstermece*/
+  /* -------------------- DEMO NOTIFICATION -------------------- */
   useEffect(() => {
-    const runDemoNotification = async () => {
+    const runDemo = async () => {
       const granted = await requestNotificationPermission();
       if (!granted) return;
 
       await scheduleDemoNotification(180);
     };
 
-    runDemoNotification();
+    runDemo();
   }, []);
 
-  /* nefes egzersizi*/
+  /* -------------------- CONTROL TRACKER -------------------- */
+  const [days, setDays] = useState(0);
+
+  useEffect(() => {
+    const load = async () => {
+      const stored = await AsyncStorage.getItem(CONTROL_KEY);
+      const today = new Date();
+
+      if (!stored) {
+        await AsyncStorage.setItem(CONTROL_KEY, today.toISOString());
+        setDays(0);
+        return;
+      }
+
+      const start = new Date(stored);
+      const diff = Math.floor(
+        (today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      setDays(diff);
+    };
+
+    load();
+  }, []);
+
+  const resetControl = async () => {
+    const today = new Date();
+    await AsyncStorage.setItem(CONTROL_KEY, today.toISOString());
+    setDays(0);
+  };
+
+  /* -------------------- BREATHING (SINGLE MODE) -------------------- */
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<number | null>(null);
 
   const [breathing, setBreathing] = useState(false);
-  const [mode, setMode] = useState<keyof typeof BREATHING_MODES>("calm");
   const [phase, setPhase] = useState<Phase>("Inhale");
-  const [seconds, setSeconds] = useState(0);
 
   const clearTimer = () => {
-    if (timerRef.current !== null) {
+    if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
@@ -142,7 +168,6 @@ export default function HomeScreen() {
   const runPhase = (p: Phase, duration: number, scale: number) => {
     clearTimer();
     setPhase(p);
-    setSeconds(duration);
 
     Animated.timing(scaleAnim, {
       toValue: scale,
@@ -150,31 +175,22 @@ export default function HomeScreen() {
       useNativeDriver: true,
     }).start();
 
-    timerRef.current = setInterval(() => {
-      setSeconds((s) => (s > 1 ? s - 1 : 0));
-    }, 1000);
+    timerRef.current = setTimeout(() => {}, duration * 1000) as any;
   };
 
   useEffect(() => {
     if (!breathing) return;
 
-    const { inhale, hold, exhale } = BREATHING_MODES[mode];
-    let cancelled = false;
-
     const run = async () => {
       for (let i = 0; i < TOTAL_CYCLES; i++) {
-        if (cancelled) return;
+        runPhase("Inhale", 4, 1.15);
+        await wait(4);
 
-        runPhase("Inhale", inhale, 1.15);
-        await wait(inhale);
+        runPhase("Hold", 4, 1.15);
+        await wait(4);
 
-        if (hold > 0) {
-          runPhase("Hold", hold, 1.15);
-          await wait(hold);
-        }
-
-        runPhase("Exhale", exhale, 1);
-        await wait(exhale);
+        runPhase("Exhale", 6, 1);
+        await wait(6);
       }
 
       clearTimer();
@@ -184,14 +200,7 @@ export default function HomeScreen() {
     };
 
     run();
-
-    return () => {
-      cancelled = true;
-      clearTimer();
-      scaleAnim.stopAnimation();
-      scaleAnim.setValue(1);
-    };
-  }, [breathing, mode]);
+  }, [breathing]);
 
   const wait = (s: number) =>
     new Promise((res) => setTimeout(res, s * 1000));
@@ -269,49 +278,16 @@ export default function HomeScreen() {
         <View style={styles.widgetRow}>
           <View style={styles.squareCard}>
             <Text style={styles.squareTitle}>Breathing Exercise</Text>
-
-            <View style={styles.modeRow}>
-              {Object.keys(BREATHING_MODES).map((key) => (
-                <TouchableOpacity
-                  key={key}
-                  onPress={() =>
-                    setMode(key as keyof typeof BREATHING_MODES)
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.modeText,
-                      mode === key && styles.modeActive,
-                    ]}
-                  >
-                    {
-                      BREATHING_MODES[
-                        key as keyof typeof BREATHING_MODES
-                      ].label
-                    }
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             <Animated.View
               style={[
                 styles.squareCircle,
                 { transform: [{ scale: scaleAnim }] },
               ]}
             >
-              <View style={styles.circleContent}>
-                {phase === "Done" ? (
-                  <Text style={styles.doneText}>Well Done!</Text>
-                ) : (
-                  <>
-                    <Text style={styles.phaseText}>{phase}</Text>
-                    <Text style={styles.secondsText}>{seconds}s</Text>
-                  </>
-                )}
-              </View>
+              <Text style={styles.doneText}>
+                {phase === "Done" ? "Well Done!" : phase}
+              </Text>
             </Animated.View>
-
             <TouchableOpacity
               style={styles.squareButton}
               onPress={() => setBreathing((b) => !b)}
@@ -323,10 +299,15 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.squareCard}>
-            <Text style={styles.squareTitle}>Daily Insight</Text>
-            <Text style={styles.insightText}>
-              Consistency matters more than intensity.
-            </Text>
+            <Text style={styles.squareTitle}>Control Tracker</Text>
+            <Text style={styles.counterText}>{days} days</Text>
+            <Text style={styles.insightText}>since last reset</Text>
+            <TouchableOpacity
+              style={styles.squareButton}
+              onPress={resetControl}
+            >
+              <Text style={styles.squareButtonText}>Reset</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -336,22 +317,18 @@ export default function HomeScreen() {
   );
 }
 
-/* stiller */
+/* -------------------- STYLES -------------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EAF4EC" },
-
   header: { paddingTop: 70, paddingHorizontal: 20 },
   welcome: { fontSize: 26, fontWeight: "700", color: "#1B331D" },
   subtitle: { fontSize: 15, color: "#355E3B", marginTop: 6 },
-
   todayCard: { margin: 20, borderRadius: 24, padding: 20 },
   todayRow: { flexDirection: "row", gap: 14 },
   todayImage: { width: 64, height: 64, borderRadius: 14 },
-
   todayTitle: { fontSize: 18, fontWeight: "700", color: "#1C3024" },
   todayDesc: { fontSize: 14, color: "#2E3D3A" },
   todayMeta: { fontSize: 12, color: "#5E7C64", marginTop: 4 },
-
   startButton: {
     marginTop: 18,
     backgroundColor: "#7BAE7F",
@@ -363,7 +340,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   startText: { color: "#fff", fontWeight: "600" },
-
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -371,14 +347,12 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginBottom: 12,
   },
-
   widgetRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 20,
     marginTop: 12,
   },
-
   squareCard: {
     width: SQUARE_SIZE,
     height: SQUARE_SIZE,
@@ -388,18 +362,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-
   squareTitle: {
     fontSize: 13,
     fontWeight: "700",
     color: "#1C3024",
   },
-
-  modeRow: { flexDirection: "row", gap: 6 },
-
-  modeText: { fontSize: 11, color: "#355E3B", fontWeight: "600" },
-  modeActive: { color: "#1B331D" },
-
   squareCircle: {
     width: 64,
     height: 64,
@@ -408,23 +375,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  circleContent: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  phaseText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-  secondsText: { color: "#fff", fontSize: 11 },
-
   doneText: {
     color: "#fff",
     fontSize: 13,
     fontWeight: "700",
-    lineHeight: 13,
     textAlign: "center",
   },
-
   squareButton: {
     backgroundColor: "#556B55",
     borderRadius: 12,
@@ -432,13 +388,16 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   squareButtonText: { color: "#fff", fontSize: 11, fontWeight: "600" },
-
+  counterText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1C3024",
+  },
   insightText: {
     textAlign: "center",
     color: "#355E3B",
     fontSize: 12,
   },
-
   recImage: {
     width: CARD_WIDTH,
     height: 160,
