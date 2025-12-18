@@ -4,10 +4,16 @@
     "slug": "Derd",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "derd",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
+    "notification": {
+      "icon": "./assets/images/logo.png",
+      "color": "#7BAE7F"
+    },
+
     "ios": {
       "supportsTablet": true
     },

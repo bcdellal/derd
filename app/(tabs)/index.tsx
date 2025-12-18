@@ -18,6 +18,11 @@ import {
 import { useAudioPlayer } from "../../context/AudioPlayerContext";
 import { auth } from "../../firebaseConfig";
 
+import {
+  requestNotificationPermission,
+  scheduleDemoNotification
+} from "../../lib/notifications";
+
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.68;
 const SQUARE_SIZE = (width - 60) / 2;
@@ -106,7 +111,19 @@ export default function HomeScreen() {
     p.play();
   });
 
-  /* -------------------- BREATHING STATE -------------------- */
+  /*3dk sonra bildirimi göstermece*/
+  useEffect(() => {
+    const runDemoNotification = async () => {
+      const granted = await requestNotificationPermission();
+      if (!granted) return;
+
+      await scheduleDemoNotification(180);
+    };
+
+    runDemoNotification();
+  }, []);
+
+  /* nefes egzersizi*/
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<number | null>(null);
 
@@ -249,7 +266,6 @@ export default function HomeScreen() {
           )}
         />
 
-        {/* WIDGET ROW */}
         <View style={styles.widgetRow}>
           <View style={styles.squareCard}>
             <Text style={styles.squareTitle}>Breathing Exercise</Text>
@@ -268,7 +284,11 @@ export default function HomeScreen() {
                       mode === key && styles.modeActive,
                     ]}
                   >
-                    {BREATHING_MODES[key as keyof typeof BREATHING_MODES].label}
+                    {
+                      BREATHING_MODES[
+                        key as keyof typeof BREATHING_MODES
+                      ].label
+                    }
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -316,7 +336,7 @@ export default function HomeScreen() {
   );
 }
 
-/* -------------------- STYLES -------------------- */
+/* stiller */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EAF4EC" },
 
