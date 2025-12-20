@@ -118,7 +118,7 @@ export default function ProfileScreen() {
       await signOut(auth);
       await AsyncStorage.clear();
       setTimeout(() => router.replace("/login" as any), 300);
-      Alert.alert("Çıkış yapıldı 🌿", "Yeniden görüşmek üzere!");
+      Alert.alert("Logged out 🌿", "See you again!");
     } catch (error: any) {
       console.error(error);
       Alert.alert("Logout Error", error.message);

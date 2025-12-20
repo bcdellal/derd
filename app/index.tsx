@@ -21,7 +21,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Derd</Text>
       <Text style={styles.subtitle}>
-        Zihinsel rahatlama ve farkındalık yolculuğun burada başlıyor.
+        Your journey to mental relaxation and mindfulness begins here.
       </Text>
 
       <View style={styles.buttonContainer}>

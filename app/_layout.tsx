@@ -77,7 +77,7 @@ export default function RootLayout() {
           />
           <Text style={styles.title}>Derd</Text>
           <Text style={styles.subtitle}>
-            Zihinsel rahatlama ve farkındalık yolculuğun başlıyor...
+            Your journey to mental relaxation and mindfulness begins here...
           </Text>
           <ActivityIndicator size="large" color="#fff" style={{ marginTop: 25 }} />
         </Animated.View>

@@ -37,7 +37,7 @@ export default function RegisterScreen() {
   // Kayıt işlemi burada  
   const handleRegister = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert("Eksik Bilgi", "Lütfen e-posta ve şifre giriniz.");
+      Alert.alert("Missing Information", "Please enter your email and password.");
       return;
     }
 
@@ -56,10 +56,10 @@ export default function RegisterScreen() {
         profilePictureURL: null,
       });
 
-      Alert.alert("Başarılı 🎉", "Hesabınız oluşturuldu!");
+      Alert.alert("Success 🎉", "Your account has been created!");
       router.replace("/(tabs)" as any);
     } catch (error: any) {
-      Alert.alert("Kayıt Hatası", error.message);
+      Alert.alert("Registration Error", error.message);
     }
   };
 

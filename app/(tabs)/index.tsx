@@ -18,7 +18,6 @@ import {
 } from "react-native";
 import { useAudioPlayer } from "../../context/AudioPlayerContext";
 import { auth } from "../../firebaseConfig";
-
 import {
   requestNotificationPermission,
   scheduleDemoNotification,
@@ -30,7 +29,18 @@ const SQUARE_SIZE = (width - 60) / 2;
 
 const CONTROL_KEY = "control_start_date";
 
-/* -------------------- DATA -------------------- */
+/* -------------------- MOTIVATION DATA -------------------- */
+const MOTIVATIONS = [
+  "Slow down. This moment matters.",
+  "Breathe in calm. Breathe out tension.",
+  "You are exactly where you need to be.",
+  "Small steps create real change.",
+  "Peace begins with one breath.",
+  "Let go of what no longer serves you.",
+  "This is your space to reset.",
+];
+
+/* -------------------- MEDITATIONS -------------------- */
 const meditations = [
   {
     id: "1",
@@ -70,7 +80,7 @@ const meditations = [
   },
 ];
 
-type Phase = "Inhale" | "Hold" | "Exhale" | "Done";
+type Phase = "Begin" | "Inhale" | "Hold" | "Exhale" | "Done";
 const TOTAL_CYCLES = 3;
 
 /* -------------------- CARD -------------------- */
@@ -101,6 +111,14 @@ export default function HomeScreen() {
   const [active, setActive] = useState(meditations[0]);
   const { play, pause, playing, activeSession } = useAudioPlayer();
 
+  const [motivation, setMotivation] = useState("");
+
+  useEffect(() => {
+    const random =
+      MOTIVATIONS[Math.floor(Math.random() * MOTIVATIONS.length)];
+    setMotivation(random);
+  }, []);
+
   const player = useVideoPlayer(active.video, (p) => {
     p.loop = true;
     p.muted = true;
@@ -108,20 +126,18 @@ export default function HomeScreen() {
     p.play();
   });
 
-  /* -------------------- DEMO NOTIFICATION -------------------- */
   useEffect(() => {
     const runDemo = async () => {
       const granted = await requestNotificationPermission();
       if (!granted) return;
-
       await scheduleDemoNotification(180);
     };
-
     runDemo();
   }, []);
 
-  /* -------------------- CONTROL TRACKER -------------------- */
+  /* -------- Set Yourself Free -------- */
   const [days, setDays] = useState(0);
+  const [isFirstDay, setIsFirstDay] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -131,72 +147,63 @@ export default function HomeScreen() {
       if (!stored) {
         await AsyncStorage.setItem(CONTROL_KEY, today.toISOString());
         setDays(0);
+        setIsFirstDay(true);
         return;
       }
 
       const start = new Date(stored);
-      const diff = Math.floor(
-        (today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const diff =
+        (new Date().setHours(0, 0, 0, 0) -
+          new Date(start).setHours(0, 0, 0, 0)) /
+        (1000 * 60 * 60 * 24);
 
       setDays(diff);
+      setIsFirstDay(diff === 0);
     };
 
     load();
   }, []);
 
   const resetControl = async () => {
-    const today = new Date();
-    await AsyncStorage.setItem(CONTROL_KEY, today.toISOString());
+    await AsyncStorage.setItem(CONTROL_KEY, new Date().toISOString());
     setDays(0);
+    setIsFirstDay(true);
   };
 
-  /* -------------------- BREATHING (SINGLE MODE) -------------------- */
+  /* -------- Mindful Breathing -------- */
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const timerRef = useRef<number | null>(null);
-
   const [breathing, setBreathing] = useState(false);
-  const [phase, setPhase] = useState<Phase>("Inhale");
-
-  const clearTimer = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-
-  const runPhase = (p: Phase, duration: number, scale: number) => {
-    clearTimer();
-    setPhase(p);
-
-    Animated.timing(scaleAnim, {
-      toValue: scale,
-      duration: duration * 1000,
-      useNativeDriver: true,
-    }).start();
-
-    timerRef.current = setTimeout(() => {}, duration * 1000) as any;
-  };
+  const [phase, setPhase] = useState<Phase>("Begin");
 
   useEffect(() => {
     if (!breathing) return;
 
     const run = async () => {
       for (let i = 0; i < TOTAL_CYCLES; i++) {
-        runPhase("Inhale", 4, 1.15);
+        setPhase("Inhale");
+        Animated.timing(scaleAnim, {
+          toValue: 1.15,
+          duration: 4000,
+          useNativeDriver: true,
+        }).start();
         await wait(4);
 
-        runPhase("Hold", 4, 1.15);
+        setPhase("Hold");
         await wait(4);
 
-        runPhase("Exhale", 6, 1);
+        setPhase("Exhale");
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 6000,
+          useNativeDriver: true,
+        }).start();
         await wait(6);
       }
 
-      clearTimer();
-      scaleAnim.setValue(1);
       setPhase("Done");
       setBreathing(false);
+      scaleAnim.setValue(1);
+      setTimeout(() => setPhase("Begin"), 2500);
     };
 
     run();
@@ -206,11 +213,7 @@ export default function HomeScreen() {
     new Promise((res) => setTimeout(res, s * 1000));
 
   const handlePlayPause = async () => {
-    if (
-      activeSession &&
-      activeSession.title === active.title &&
-      playing
-    ) {
+    if (activeSession && activeSession.title === active.title && playing) {
       await pause();
     } else {
       await play({ title: active.title, audio: active.audio });
@@ -219,21 +222,23 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <VideoView
-        player={player}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-      />
+      <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" />
       <BlurView intensity={55} tint="light" style={StyleSheet.absoluteFill} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* HEADER */}
         <View style={styles.header}>
+          <View style={styles.logoWrapper}>
+            <Image
+              source={require("../../assets/images/derdlogo2.png")}
+              style={styles.headerLogo}
+            />
+          </View>
           <Text style={styles.welcome}>Welcome back, {name}</Text>
-          <Text style={styles.subtitle}>
-            Take a moment for yourself today.
-          </Text>
+          <Text style={styles.subtitle}>Take a moment for yourself today.</Text>
         </View>
 
+        {/* TODAY */}
         <LinearGradient
           colors={["rgba(255,255,255,0.9)", "rgba(255,255,255,0.7)"]}
           style={styles.todayCard}
@@ -247,10 +252,7 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.startButton}
-            onPress={handlePlayPause}
-          >
+          <TouchableOpacity style={styles.startButton} onPress={handlePlayPause}>
             <FontAwesome
               name={playing ? "pause" : "play"}
               size={16}
@@ -262,7 +264,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </LinearGradient>
 
-        <Text style={styles.sectionTitle}>Recommended Sessions</Text>
+        <Text style={styles.sectionTitle}>Meditation Sessions</Text>
 
         <FlatList
           horizontal
@@ -275,40 +277,55 @@ export default function HomeScreen() {
           )}
         />
 
+        {/* WIDGETS */}
         <View style={styles.widgetRow}>
-          <View style={styles.squareCard}>
-            <Text style={styles.squareTitle}>Breathing Exercise</Text>
-            <Animated.View
-              style={[
-                styles.squareCircle,
-                { transform: [{ scale: scaleAnim }] },
-              ]}
-            >
-              <Text style={styles.doneText}>
-                {phase === "Done" ? "Well Done!" : phase}
-              </Text>
-            </Animated.View>
-            <TouchableOpacity
-              style={styles.squareButton}
-              onPress={() => setBreathing((b) => !b)}
-            >
-              <Text style={styles.squareButtonText}>
-                {breathing ? "Stop" : "Start"}
-              </Text>
+          <View style={styles.squareCardBreathing}>
+            <Text style={styles.squareTitle}>Mindful Breathing</Text>
+            <Text style={styles.squareDesc}>Slow your breath. Calm your mind.</Text>
+            <TouchableOpacity onPress={() => !breathing && setBreathing(true)}>
+              <Animated.View
+                style={[
+                  styles.squareCircle,
+                  { transform: [{ scale: scaleAnim }] },
+                ]}
+              >
+                <Text style={styles.doneText}>
+                  {phase === "Done" ? "Well Done" : phase}
+                </Text>
+              </Animated.View>
             </TouchableOpacity>
           </View>
 
           <View style={styles.squareCard}>
-            <Text style={styles.squareTitle}>Control Tracker</Text>
-            <Text style={styles.counterText}>{days} days</Text>
-            <Text style={styles.insightText}>since last reset</Text>
-            <TouchableOpacity
-              style={styles.squareButton}
-              onPress={resetControl}
-            >
-              <Text style={styles.squareButtonText}>Reset</Text>
-            </TouchableOpacity>
+            <Text style={styles.squareTitle}>Set Yourself Free</Text>
+            {isFirstDay ? (
+              <>
+                <Text style={styles.squareDesc}>Your journey starts</Text>
+                <Text style={styles.daysText}>Today</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.squareDesc}>
+                  Your soul has been completely free for
+                </Text>
+                <Text style={styles.daysText}>{days} days</Text>
+                <Text style={styles.questionText}>
+                  Do you want to start over?
+                </Text>
+                <TouchableOpacity
+                  style={styles.squareButtonSoft}
+                  onPress={resetControl}
+                >
+                  <Text style={styles.squareButtonTextSoft}>Start over</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
+        </View>
+
+        {/* MOTIVATION CARD */}
+        <View style={styles.motivationCard}>
+          <Text style={styles.motivationText}>{motivation}</Text>
         </View>
 
         <View style={{ height: 160 }} />
@@ -320,15 +337,29 @@ export default function HomeScreen() {
 /* -------------------- STYLES -------------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EAF4EC" },
-  header: { paddingTop: 70, paddingHorizontal: 20 },
+
+  header: { paddingTop: 56, paddingHorizontal: 20 },
+
+  logoWrapper: { alignItems: "center", marginBottom: 8 },
+
+  headerLogo: { width: 120, height: 40, resizeMode: "contain" },
+
   welcome: { fontSize: 26, fontWeight: "700", color: "#1B331D" },
+
   subtitle: { fontSize: 15, color: "#355E3B", marginTop: 6 },
+
   todayCard: { margin: 20, borderRadius: 24, padding: 20 },
+
   todayRow: { flexDirection: "row", gap: 14 },
+
   todayImage: { width: 64, height: 64, borderRadius: 14 },
+
   todayTitle: { fontSize: 18, fontWeight: "700", color: "#1C3024" },
+
   todayDesc: { fontSize: 14, color: "#2E3D3A" },
+
   todayMeta: { fontSize: 12, color: "#5E7C64", marginTop: 4 },
+
   startButton: {
     marginTop: 18,
     backgroundColor: "#7BAE7F",
@@ -339,7 +370,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
+
   startText: { color: "#fff", fontWeight: "600" },
+
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -347,12 +380,23 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginBottom: 12,
   },
+
   widgetRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 20,
     marginTop: 12,
   },
+
+  squareCardBreathing: {
+    width: SQUARE_SIZE,
+    height: SQUARE_SIZE,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderRadius: 18,
+    padding: 10,
+    alignItems: "center",
+  },
+
   squareCard: {
     width: SQUARE_SIZE,
     height: SQUARE_SIZE,
@@ -360,13 +404,18 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 10,
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
   },
-  squareTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1C3024",
+
+  squareTitle: { fontSize: 13, fontWeight: "700", color: "#1C3024" },
+
+  squareDesc: {
+    fontSize: 11,
+    color: "#355E3B",
+    textAlign: "center",
+    marginTop: 4,
   },
+
   squareCircle: {
     width: 64,
     height: 64,
@@ -374,30 +423,62 @@ const styles = StyleSheet.create({
     backgroundColor: "#7BAE7F",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 12,
   },
+
   doneText: {
     color: "#fff",
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
   },
-  squareButton: {
-    backgroundColor: "#556B55",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  squareButtonText: { color: "#fff", fontSize: 11, fontWeight: "600" },
-  counterText: {
-    fontSize: 20,
+
+  daysText: {
+    fontSize: 22,
     fontWeight: "700",
     color: "#1C3024",
+    marginTop: 6,
   },
-  insightText: {
-    textAlign: "center",
+
+  questionText: {
+    fontSize: 11,
     color: "#355E3B",
-    fontSize: 12,
+    textAlign: "center",
+    marginTop: 4,
   },
+
+  squareButtonSoft: {
+    backgroundColor: "rgba(123,174,127,0.15)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 6,
+  },
+
+  squareButtonTextSoft: {
+    color: "#1C3024",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+
+  motivationCard: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    backgroundColor: "rgba(255,255,255,0.75)",
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  motivationText: {
+    fontSize: 13,
+    color: "#355E3B",
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+
   recImage: {
     width: CARD_WIDTH,
     height: 160,
@@ -405,6 +486,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
   },
+
   recOverlay: { flex: 1, justifyContent: "flex-end", padding: 14 },
+
   recTitle: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });
