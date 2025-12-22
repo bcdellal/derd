@@ -3,6 +3,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
+import {
+  doc,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -17,7 +22,7 @@ import {
   View,
 } from "react-native";
 import { useAudioPlayer } from "../../context/AudioPlayerContext";
-import { auth } from "../../firebaseConfig";
+import { auth, db } from "../../firebaseConfig";
 import {
   requestNotificationPermission,
   scheduleDemoNotification,
@@ -110,13 +115,12 @@ export default function HomeScreen() {
 
   const [active, setActive] = useState(meditations[0]);
   const { play, pause, playing, activeSession } = useAudioPlayer();
-
   const [motivation, setMotivation] = useState("");
 
   useEffect(() => {
-    const random =
-      MOTIVATIONS[Math.floor(Math.random() * MOTIVATIONS.length)];
-    setMotivation(random);
+    setMotivation(
+      MOTIVATIONS[Math.floor(Math.random() * MOTIVATIONS.length)]
+    );
   }, []);
 
   const player = useVideoPlayer(active.video, (p) => {
@@ -129,8 +133,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const runDemo = async () => {
       const granted = await requestNotificationPermission();
-      if (!granted) return;
-      await scheduleDemoNotification(180);
+      if (granted) await scheduleDemoNotification(180);
     };
     runDemo();
   }, []);
@@ -203,6 +206,13 @@ export default function HomeScreen() {
       setPhase("Done");
       setBreathing(false);
       scaleAnim.setValue(1);
+
+      if (auth.currentUser) {
+        await updateDoc(doc(db, "users", auth.currentUser.uid), {
+          lastBreathingAt: serverTimestamp(),
+        });
+      }
+
       setTimeout(() => setPhase("Begin"), 2500);
     };
 
@@ -222,11 +232,14 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+      />
       <BlurView intensity={55} tint="light" style={StyleSheet.absoluteFill} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.logoWrapper}>
             <Image
@@ -238,7 +251,6 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>Take a moment for yourself today.</Text>
         </View>
 
-        {/* TODAY */}
         <LinearGradient
           colors={["rgba(255,255,255,0.9)", "rgba(255,255,255,0.7)"]}
           style={styles.todayCard}
@@ -252,7 +264,10 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.startButton} onPress={handlePlayPause}>
+          <TouchableOpacity
+            style={styles.startButton}
+            onPress={handlePlayPause}
+          >
             <FontAwesome
               name={playing ? "pause" : "play"}
               size={16}
@@ -277,11 +292,12 @@ export default function HomeScreen() {
           )}
         />
 
-        {/* WIDGETS */}
         <View style={styles.widgetRow}>
           <View style={styles.squareCardBreathing}>
             <Text style={styles.squareTitle}>Mindful Breathing</Text>
-            <Text style={styles.squareDesc}>Slow your breath. Calm your mind.</Text>
+            <Text style={styles.squareDesc}>
+              Slow your breath. Calm your mind.
+            </Text>
             <TouchableOpacity onPress={() => !breathing && setBreathing(true)}>
               <Animated.View
                 style={[
@@ -323,7 +339,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* MOTIVATION CARD */}
         <View style={styles.motivationCard}>
           <Text style={styles.motivationText}>{motivation}</Text>
         </View>
@@ -337,29 +352,17 @@ export default function HomeScreen() {
 /* -------------------- STYLES -------------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EAF4EC" },
-
   header: { paddingTop: 56, paddingHorizontal: 20 },
-
   logoWrapper: { alignItems: "center", marginBottom: 8 },
-
   headerLogo: { width: 120, height: 40, resizeMode: "contain" },
-
   welcome: { fontSize: 26, fontWeight: "700", color: "#1B331D" },
-
   subtitle: { fontSize: 15, color: "#355E3B", marginTop: 6 },
-
   todayCard: { margin: 20, borderRadius: 24, padding: 20 },
-
   todayRow: { flexDirection: "row", gap: 14 },
-
   todayImage: { width: 64, height: 64, borderRadius: 14 },
-
   todayTitle: { fontSize: 18, fontWeight: "700", color: "#1C3024" },
-
   todayDesc: { fontSize: 14, color: "#2E3D3A" },
-
   todayMeta: { fontSize: 12, color: "#5E7C64", marginTop: 4 },
-
   startButton: {
     marginTop: 18,
     backgroundColor: "#7BAE7F",
@@ -370,9 +373,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-
   startText: { color: "#fff", fontWeight: "600" },
-
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -380,14 +381,12 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginBottom: 12,
   },
-
   widgetRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 20,
     marginTop: 12,
   },
-
   squareCardBreathing: {
     width: SQUARE_SIZE,
     height: SQUARE_SIZE,
@@ -396,7 +395,6 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: "center",
   },
-
   squareCard: {
     width: SQUARE_SIZE,
     height: SQUARE_SIZE,
@@ -406,16 +404,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   squareTitle: { fontSize: 13, fontWeight: "700", color: "#1C3024" },
-
   squareDesc: {
     fontSize: 11,
     color: "#355E3B",
     textAlign: "center",
     marginTop: 4,
   },
-
   squareCircle: {
     width: 64,
     height: 64,
@@ -425,28 +420,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 12,
   },
-
   doneText: {
     color: "#fff",
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
   },
-
   daysText: {
     fontSize: 22,
     fontWeight: "700",
     color: "#1C3024",
     marginTop: 6,
   },
-
   questionText: {
     fontSize: 11,
     color: "#355E3B",
     textAlign: "center",
     marginTop: 4,
   },
-
   squareButtonSoft: {
     backgroundColor: "rgba(123,174,127,0.15)",
     borderRadius: 12,
@@ -454,13 +445,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginTop: 6,
   },
-
   squareButtonTextSoft: {
     color: "#1C3024",
     fontSize: 11,
     fontWeight: "600",
   },
-
   motivationCard: {
     marginHorizontal: 20,
     marginTop: 14,
@@ -471,14 +460,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   motivationText: {
     fontSize: 13,
     color: "#355E3B",
     textAlign: "center",
     fontStyle: "italic",
   },
-
   recImage: {
     width: CARD_WIDTH,
     height: 160,
@@ -486,8 +473,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
   },
-
   recOverlay: { flex: 1, justifyContent: "flex-end", padding: 14 },
-
   recTitle: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });

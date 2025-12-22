@@ -33,18 +33,18 @@ interface DiaryEntry {
   id?: string;
   title: string;
   content: string;
-  mood: string; // 🔑 SADECE STRING
+  mood: string; //  SADECE STRING
   createdAt: Date | null;
   userId?: string;
   temp?: boolean;
 }
 
 const MOODS = [
-  { key: "happy", label: "Mutlu", emoji: "😊" },
-  { key: "calm", label: "Sakin", emoji: "😌" },
-  { key: "sad", label: "Üzgün", emoji: "😔" },
-  { key: "tense", label: "Gergin", emoji: "😠" },
-  { key: "tired", label: "Yorgun", emoji: "😴" },
+  { key: "happy", label: "happy", emoji: "😊" },
+  { key: "calm", label: "calm", emoji: "😌" },
+  { key: "sad", label: "sad", emoji: "😔" },
+  { key: "tense", label: "tense", emoji: "😠" },
+  { key: "tired", label: "tired", emoji: "😴" },
 ];
 
 const getMoodByKey = (key: string) =>
@@ -124,11 +124,11 @@ export default function DiaryScreen() {
   /* ----------- SAVE ----------- */
   const handleSave = async () => {
     if (!title.trim() || !content.trim()) {
-      Alert.alert("Uyarı", "Başlık ve içerik boş olamaz.");
+      Alert.alert("Warning", "Title and content cannot be empty.");
       return;
     }
     if (!selectedMood) {
-      Alert.alert("Uyarı", "Lütfen ruh halini seç.");
+      Alert.alert("Hey", "Please select your mood.");
       return;
     }
 
@@ -163,6 +163,11 @@ export default function DiaryScreen() {
           createdAt: serverTimestamp(),
           userId: user.uid,
         });
+
+        await updateDoc(doc(db, "users", user.uid), {
+          lastJournalAt: serverTimestamp(),
+        });
+
         Alert.alert("Başarılı", "Günlük kaydedildi.");
       }
 
@@ -194,7 +199,6 @@ export default function DiaryScreen() {
         <ScrollView>
           <Text style={styles.header}>How Are You Feeling Today?</Text>
 
-          {/* MOOD */}
           <View style={styles.moodRow}>
             {MOODS.map((m) => (
               <TouchableOpacity
@@ -339,4 +343,3 @@ const styles = StyleSheet.create({
   entryDate: { fontSize: 12, color: "#556B55", marginBottom: 6 },
   entryContent: { fontSize: 15 },
 });
-

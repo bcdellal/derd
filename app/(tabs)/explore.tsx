@@ -55,7 +55,7 @@ const PostCard = ({ post }: { post: ExplorePost }) => {
               liked && { color: "#E86F73", fontWeight: "700" },
             ]}
           >
-            Bana İyi Geldi
+            Positive Vibes
           </Text>
         </TouchableOpacity>
       </View>
@@ -98,7 +98,7 @@ export default function ExploreScreen() {
       resizeMode="cover"
     >
       <View style={styles.overlay}>
-        <Text style={styles.headerTitle}>Keşfet</Text>
+        <Text style={styles.headerTitle}>Explore</Text>
         <FlatList
           data={posts}
           renderItem={({ item }) => <PostCard post={item} />}
