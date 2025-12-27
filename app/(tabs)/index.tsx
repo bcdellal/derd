@@ -3,11 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
-import {
-  doc,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
+import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -138,19 +134,17 @@ export default function HomeScreen() {
     runDemo();
   }, []);
 
-  /* -------- Set Yourself Free -------- */
-  const [days, setDays] = useState(0);
-  const [isFirstDay, setIsFirstDay] = useState(false);
+  /* -------- Set Yourself Free (MANUAL START) -------- */
+  const [days, setDays] = useState<number | null>(null);
+  const [hasStarted, setHasStarted] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       const stored = await AsyncStorage.getItem(CONTROL_KEY);
-      const today = new Date();
 
       if (!stored) {
-        await AsyncStorage.setItem(CONTROL_KEY, today.toISOString());
-        setDays(0);
-        setIsFirstDay(true);
+        setHasStarted(false);
+        setDays(null);
         return;
       }
 
@@ -161,16 +155,23 @@ export default function HomeScreen() {
         (1000 * 60 * 60 * 24);
 
       setDays(diff);
-      setIsFirstDay(diff === 0);
+      setHasStarted(true);
     };
 
     load();
   }, []);
 
-  const resetControl = async () => {
-    await AsyncStorage.setItem(CONTROL_KEY, new Date().toISOString());
+  const startControl = async () => {
+    const now = new Date().toISOString();
+    await AsyncStorage.setItem(CONTROL_KEY, now);
     setDays(0);
-    setIsFirstDay(true);
+    setHasStarted(true);
+  };
+
+  const resetControl = async () => {
+    await AsyncStorage.removeItem(CONTROL_KEY);
+    setDays(null);
+    setHasStarted(false);
   };
 
   /* -------- Mindful Breathing -------- */
@@ -314,20 +315,32 @@ export default function HomeScreen() {
 
           <View style={styles.squareCard}>
             <Text style={styles.squareTitle}>Set Yourself Free</Text>
-            {isFirstDay ? (
+
+            {!hasStarted ? (
               <>
-                <Text style={styles.squareDesc}>Your journey starts</Text>
-                <Text style={styles.daysText}>Today</Text>
+                <Text style={styles.squareDesc}>
+                  Start your freedom journey when you feel ready.
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.squareButtonSoft}
+                  onPress={startControl}
+                >
+                  <Text style={styles.squareButtonTextSoft}>Start</Text>
+                </TouchableOpacity>
               </>
             ) : (
               <>
                 <Text style={styles.squareDesc}>
-                  Your soul has been completely free for
+                  Your soul has been free for
                 </Text>
+
                 <Text style={styles.daysText}>{days} days</Text>
+
                 <Text style={styles.questionText}>
                   Do you want to start over?
                 </Text>
+
                 <TouchableOpacity
                   style={styles.squareButtonSoft}
                   onPress={resetControl}
