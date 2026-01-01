@@ -12,6 +12,7 @@ type AudioContextType = {
   play: (session: Session) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
+  stop: () => Promise<void>;
 };
 
 const AudioPlayerContext = createContext<AudioContextType | null>(null);
@@ -24,6 +25,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
   const play = async (session: Session) => {
     if (soundRef.current) {
+      await soundRef.current.stopAsync();
       await soundRef.current.unloadAsync();
       soundRef.current = null;
     }
@@ -48,9 +50,27 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     setPlaying(true);
   };
 
+  const stop = async () => {
+    if (!soundRef.current) return;
+
+    await soundRef.current.stopAsync();
+    await soundRef.current.unloadAsync();
+
+    soundRef.current = null;
+    setActiveSession(null);
+    setPlaying(false);
+  };
+
   return (
     <AudioPlayerContext.Provider
-      value={{ activeSession, playing, play, pause, resume }}
+      value={{
+        activeSession,
+        playing,
+        play,
+        pause,
+        resume,
+        stop,
+      }}
     >
       {children}
     </AudioPlayerContext.Provider>
@@ -59,6 +79,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
 export function useAudioPlayer() {
   const ctx = useContext(AudioPlayerContext);
-  if (!ctx) throw new Error("useAudioPlayer must be used inside AudioPlayerProvider");
+  if (!ctx) {
+    throw new Error("useAudioPlayer must be used inside AudioPlayerProvider");
+  }
   return ctx;
 }

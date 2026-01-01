@@ -1,15 +1,63 @@
 import { FontAwesome } from "@expo/vector-icons";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRef } from "react";
+import {
+  Animated,
+  PanResponder,
+  StyleSheet,
+  Text,
+  TouchableOpacity
+} from "react-native";
 import { useAudioPlayer } from "../context/AudioPlayerContext";
 
 export default function GlobalMiniPlayer() {
-  const { activeSession, playing, pause, resume } = useAudioPlayer();
+  const { activeSession, playing, pause, resume, stop } = useAudioPlayer();
+
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dy) > 5,
+
+      onPanResponderMove: (_, gesture) => {
+        if (gesture.dy > 0) {
+          translateY.setValue(gesture.dy);
+        }
+      },
+
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy > 60) {
+          Animated.timing(translateY, {
+            toValue: 120,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            stop();
+            translateY.setValue(0);
+          });
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   if (!activeSession) return null;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{activeSession.title}</Text>
+    <Animated.View
+      style={[
+        styles.container,
+        { transform: [{ translateY }] },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      <Text style={styles.title} numberOfLines={1}>
+        {activeSession.title}
+      </Text>
 
       <TouchableOpacity onPress={playing ? pause : resume}>
         <FontAwesome
@@ -18,7 +66,7 @@ export default function GlobalMiniPlayer() {
           color="#fff"
         />
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -40,5 +88,7 @@ const styles = StyleSheet.create({
   title: {
     color: "#fff",
     fontWeight: "600",
+    flex: 1,
+    marginRight: 12,
   },
 });
