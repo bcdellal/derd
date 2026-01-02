@@ -33,7 +33,7 @@ interface DiaryEntry {
   id?: string;
   title: string;
   content: string;
-  mood: string; //  SADECE STRING
+  mood: string;
   createdAt: Date | null;
   userId?: string;
   temp?: boolean;
@@ -147,14 +147,14 @@ export default function DiaryScreen() {
         const stored = await AsyncStorage.getItem("offlineEntries");
         const updated = stored ? [...JSON.parse(stored), local] : [local];
         await AsyncStorage.setItem("offlineEntries", JSON.stringify(updated));
-        Alert.alert("Offline", "Kayıt cihazda saklandı.");
+        Alert.alert("Offline", "Record saved on device.");
       } else if (editingId) {
         await updateDoc(doc(db, "diaries", editingId), {
           title,
           content,
           mood: selectedMood,
         });
-        Alert.alert("Başarılı", "Günlük güncellendi.");
+        Alert.alert("Success", "Daily updated.");
       } else {
         await addDoc(collection(db, "diaries"), {
           title,
@@ -168,7 +168,7 @@ export default function DiaryScreen() {
           lastJournalAt: serverTimestamp(),
         });
 
-        Alert.alert("Başarılı", "Günlük kaydedildi.");
+        Alert.alert("Success", "Recorded daily.");
       }
 
       setTitle("");
@@ -178,7 +178,7 @@ export default function DiaryScreen() {
       Keyboard.dismiss();
     } catch (e) {
       console.log(e);
-      Alert.alert("Hata", "Kayıt yapılamadı.");
+      Alert.alert("Error", " Registration failed..");
     }
   };
 
@@ -196,7 +196,10 @@ export default function DiaryScreen() {
       style={styles.container}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.header}>How Are You Feeling Today?</Text>
 
           <View style={styles.moodRow}>
@@ -270,6 +273,11 @@ export default function DiaryScreen() {
 /* -------------------- STYLES -------------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#a9c2a9" },
+
+  scrollContent: {
+    paddingBottom: 240,
+  },
+
   header: {
     fontSize: 28,
     fontWeight: "300",
