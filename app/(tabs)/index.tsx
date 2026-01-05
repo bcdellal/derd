@@ -24,13 +24,16 @@ import {
   scheduleDemoNotification,
 } from "../../lib/notifications";
 
+// Ekran boyutuna göre kart ölçüleri
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.68;
 const SQUARE_SIZE = (width - 60) / 2;
 
+// “Set Yourself Free” başlangıç tarihi için local key
 const CONTROL_KEY = "control_start_date";
 
 /* -------------------- MOTIVATION DATA -------------------- */
+// Ekranın alt kısmında rastgele gösterilen motivasyon cümleleri
 const MOTIVATIONS = [
   "Slow down. This moment matters.",
   "Breathe in calm. Breathe out tension.",
@@ -42,6 +45,7 @@ const MOTIVATIONS = [
 ];
 
 /* -------------------- MEDITATIONS -------------------- */
+// Uygulamada sunulan meditasyon içerikleri
 const meditations = [
   {
     id: "1",
@@ -81,10 +85,12 @@ const meditations = [
   },
 ];
 
+// Nefes egzersizi fazları
 type Phase = "Begin" | "Inhale" | "Hold" | "Exhale" | "Done";
 const TOTAL_CYCLES = 3;
 
 /* -------------------- CARD -------------------- */
+// Meditasyon öneri kartı
 function RecommendedCard({ item, onSelect }: any) {
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={() => onSelect(item)}>
@@ -105,20 +111,27 @@ function RecommendedCard({ item, onSelect }: any) {
 }
 
 /* -------------------- SCREEN -------------------- */
+// Uygulamanın ana (home) ekranı
 export default function HomeScreen() {
+  // Giriş yapan kullanıcı bilgisi
   const user = auth.currentUser;
   const name = user?.email?.split("@")[0] || "Friend";
 
+  // Aktif seçili meditasyon
   const [active, setActive] = useState(meditations[0]);
+  // Global audio player kontrolü
   const { play, pause, playing, activeSession } = useAudioPlayer();
+  // Rastgele motivasyon metni
   const [motivation, setMotivation] = useState("");
 
+  // Sayfa açılınca rastgele motivasyon seçilir
   useEffect(() => {
     setMotivation(
       MOTIVATIONS[Math.floor(Math.random() * MOTIVATIONS.length)]
     );
   }, []);
 
+  // Arka planda loop eden video player
   const player = useVideoPlayer(active.video, (p) => {
     p.loop = true;
     p.muted = true;
@@ -126,6 +139,7 @@ export default function HomeScreen() {
     p.play();
   });
 
+  // Bildirim izni alınıp demo bildirim planlanır
   useEffect(() => {
     const runDemo = async () => {
       const granted = await requestNotificationPermission();
@@ -134,10 +148,12 @@ export default function HomeScreen() {
     runDemo();
   }, []);
 
-  /* -------- Set Yourself Free (MANUAL START) -------- */
+  /* -------- Set Yourself Free -------- */
+  // Kullanıcının kaç gündür başladığını tutar
   const [days, setDays] = useState<number | null>(null);
   const [hasStarted, setHasStarted] = useState(false);
 
+  // Local storage’dan başlangıç tarihi okunur
   useEffect(() => {
     const load = async () => {
       const stored = await AsyncStorage.getItem(CONTROL_KEY);
@@ -161,6 +177,7 @@ export default function HomeScreen() {
     load();
   }, []);
 
+  // Kontrol sürecini başlatır
   const startControl = async () => {
     const now = new Date().toISOString();
     await AsyncStorage.setItem(CONTROL_KEY, now);
@@ -168,6 +185,7 @@ export default function HomeScreen() {
     setHasStarted(true);
   };
 
+  // Kontrol sürecini sıfırlar
   const resetControl = async () => {
     await AsyncStorage.removeItem(CONTROL_KEY);
     setDays(null);
@@ -175,10 +193,12 @@ export default function HomeScreen() {
   };
 
   /* -------- Mindful Breathing -------- */
+  // Nefes animasyonu için scale değeri
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [breathing, setBreathing] = useState(false);
   const [phase, setPhase] = useState<Phase>("Begin");
 
+  // Nefes egzersizi akışı
   useEffect(() => {
     if (!breathing) return;
 
@@ -208,6 +228,7 @@ export default function HomeScreen() {
       setBreathing(false);
       scaleAnim.setValue(1);
 
+      // Kullanıcının son nefes egzersizi zamanı Firestore’a yazılır
       if (auth.currentUser) {
         await updateDoc(doc(db, "users", auth.currentUser.uid), {
           lastBreathingAt: serverTimestamp(),
@@ -220,9 +241,11 @@ export default function HomeScreen() {
     run();
   }, [breathing]);
 
+  // Bekleme yardımcı fonksiyonu
   const wait = (s: number) =>
     new Promise((res) => setTimeout(res, s * 1000));
 
+  // Meditasyon sesini play / pause eder
   const handlePlayPause = async () => {
     if (activeSession && activeSession.title === active.title && playing) {
       await pause();
@@ -233,14 +256,17 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Arka plan video */}
       <VideoView
         player={player}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
+      {/* Blur efekti */}
       <BlurView intensity={55} tint="light" style={StyleSheet.absoluteFill} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Üst karşılama alanı */}
         <View style={styles.header}>
           <View style={styles.logoWrapper}>
             <Image
@@ -252,6 +278,7 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>Take a moment for yourself today.</Text>
         </View>
 
+        {/* Bugünün önerilen meditasyonu */}
         <LinearGradient
           colors={["rgba(255,255,255,0.9)", "rgba(255,255,255,0.7)"]}
           style={styles.todayCard}
@@ -282,6 +309,7 @@ export default function HomeScreen() {
 
         <Text style={styles.sectionTitle}>Meditation Sessions</Text>
 
+        {/* Meditasyon listesi */}
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -293,7 +321,9 @@ export default function HomeScreen() {
           )}
         />
 
+        {/* Alt widget alanı */}
         <View style={styles.widgetRow}>
+          {/* Nefes egzersizi */}
           <View style={styles.squareCardBreathing}>
             <Text style={styles.squareTitle}>Mindful Breathing</Text>
             <Text style={styles.squareDesc}>
@@ -313,6 +343,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Set Yourself Free widget */}
           <View style={styles.squareCard}>
             <Text style={styles.squareTitle}>Set Yourself Free</Text>
 
@@ -352,6 +383,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Motivasyon kartı */}
         <View style={styles.motivationCard}>
           <Text style={styles.motivationText}>{motivation}</Text>
         </View>

@@ -1,10 +1,11 @@
 import { initializeApp } from "firebase/app";
 
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
-import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
+import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
+import { getReactNativePersistence, initializeAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-
+// Firebase projesine ait temel yapılandırma bilgileri
+// Bu bilgiler Firebase Console üzerinden oluşturulur
 const firebaseConfig = {
   apiKey: "AIzaSyC3Fw0oic63hcHmusZGVrkyZLQc-BHgqMs",
   authDomain: "derd-app.firebaseapp.com",
@@ -15,14 +16,17 @@ const firebaseConfig = {
   measurementId: "G-2263S50WNG"
 };
 
-
+// Firebase uygulaması bu satırda başlatılır
+// Bu işlem tüm Firebase servislerinin temelidir
 const app = initializeApp(firebaseConfig);
 
-// Diğer dosyalarda kullanmak üzere servisleri dışa aktarma burda var 
+// Firestore veritabanı servisi oluşturulur
+// Uygulama genelinde veri okuma/yazma işlemleri buradan yapılır
 export const db = getFirestore(app);
 
-
-// Bu kod, kullanıcının giriş durumunu telde  saklatır
+// Firebase Authentication servisi initialize edilir
+// React Native ortamında oturumun kalıcı olması için
+// AsyncStorage tabanlı persistence kullanılır
 export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(ReactNativeAsyncStorage)
 });

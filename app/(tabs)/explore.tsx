@@ -24,10 +24,12 @@ import {
 } from "react-native";
 import { db } from "../../firebaseConfig";
 
+// Kullanıcının verdiği positive vibe bilgisini localde tutmak için key
 const POSITIVE_KEY = "positive_vibes_posts";
 
 /* ---------------- TYPES ---------------- */
 
+// Explore ekranında gösterilecek post yapısı
 interface ExplorePost {
   id: string;
   body: string;
@@ -37,10 +39,13 @@ interface ExplorePost {
 
 /* ---------------- POST CARD ---------------- */
 
+// Tek bir postu ekranda göstermek için kullanılan component
 const PostCard = ({ post }: { post: ExplorePost }) => {
+  // Kullanıcının bu posta daha önce vibe verip vermediğini tutar
   const [vibed, setVibed] = useState(false);
 
   useEffect(() => {
+    // Kullanıcının local storage’daki vibe geçmişi okunur
     const loadState = async () => {
       const stored = await AsyncStorage.getItem(POSITIVE_KEY);
       const list: string[] = stored ? JSON.parse(stored) : [];
@@ -49,17 +54,21 @@ const PostCard = ({ post }: { post: ExplorePost }) => {
     loadState();
   }, [post.id]);
 
+  // Positive vibe butonuna basılınca çalışan fonksiyon
   const toggleVibe = async () => {
     const stored = await AsyncStorage.getItem(POSITIVE_KEY);
     let list: string[] = stored ? JSON.parse(stored) : [];
 
+    // Daha önce vibe verilmişse geri alınır
     if (vibed) {
       await updateDoc(doc(db, "exploreContent", post.id), {
         likesCount: increment(-1),
       });
       list = list.filter((id) => id !== post.id);
       setVibed(false);
-    } else {
+    }
+    // İlk kez vibe veriliyorsa artırılır
+    else {
       await updateDoc(doc(db, "exploreContent", post.id), {
         likesCount: increment(1),
       });
@@ -67,9 +76,11 @@ const PostCard = ({ post }: { post: ExplorePost }) => {
       setVibed(true);
     }
 
+    // Kullanıcının vibe verdiği postlar localde saklanır
     await AsyncStorage.setItem(POSITIVE_KEY, JSON.stringify(list));
   };
 
+  // Story türüne göre etiket belirlenir
   const storyLabel =
     post.storyType === "experience"
       ? "🌱 Experience"
@@ -90,6 +101,7 @@ const PostCard = ({ post }: { post: ExplorePost }) => {
           onPress={toggleVibe}
           activeOpacity={0.7}
         >
+          {/* Positive vibe ikonu */}
           <FontAwesome
             name="smile-o"
             size={18}
@@ -111,10 +123,14 @@ const PostCard = ({ post }: { post: ExplorePost }) => {
 
 /* ---------------- MAIN SCREEN ---------------- */
 
+// Explore ekranının ana componenti
 export default function ExploreScreen() {
+  // Firestore’dan çekilen post listesi
   const [posts, setPosts] = useState<ExplorePost[]>([]);
+  // Veri yüklenme durumu
   const [loading, setLoading] = useState(true);
 
+  // Yeni post ekleme modal kontrolü
   const [showModal, setShowModal] = useState(false);
   const [body, setBody] = useState("");
   const [storyType, setStoryType] = useState<
@@ -122,6 +138,7 @@ export default function ExploreScreen() {
   >("experience");
 
   useEffect(() => {
+    // Explore içerikleri Firestore’dan gerçek zamanlı dinlenir
     const q = query(collection(db, "exploreContent"));
 
     const unsub = onSnapshot(q, (snap) => {
@@ -136,6 +153,7 @@ export default function ExploreScreen() {
     return () => unsub();
   }, []);
 
+  // Yeni anonim post paylaşma işlemi
   const handleShare = async () => {
     if (!body.trim()) return;
 
@@ -146,11 +164,13 @@ export default function ExploreScreen() {
       createdAt: serverTimestamp(),
     });
 
+    // Form sıfırlanır ve modal kapatılır
     setBody("");
     setStoryType("experience");
     setShowModal(false);
   };
 
+  // Veri yüklenirken loading gösterilir
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: "center" }]}>
@@ -167,6 +187,7 @@ export default function ExploreScreen() {
       <View style={styles.overlay}>
         <Text style={styles.headerTitle}>Explore</Text>
 
+        {/* Postlar liste halinde gösterilir */}
         <FlatList
           data={posts}
           renderItem={({ item }) => <PostCard post={item} />}
@@ -176,12 +197,12 @@ export default function ExploreScreen() {
         />
       </View>
 
-      {/* Floating + Button */}
+      {/* Yeni paylaşım açmak için floating button */}
       <TouchableOpacity style={styles.fab} onPress={() => setShowModal(true)}>
         <Text style={styles.fabText}>＋</Text>
       </TouchableOpacity>
 
-      {/* Share Modal */}
+      {/* Anonim paylaşım modalı */}
       <Modal visible={showModal} animationType="slide" transparent>
         <View style={styles.modalWrap}>
           <View style={styles.modal}>
@@ -190,6 +211,7 @@ export default function ExploreScreen() {
               Your identity is not visible to others.
             </Text>
 
+            {/* Story tipi seçimi */}
             <View style={styles.typeRow}>
               {[
                 { key: "experience", label: "🌱 Experience" },
@@ -213,6 +235,7 @@ export default function ExploreScreen() {
               ))}
             </View>
 
+            {/* Paylaşılacak içerik */}
             <TextInput
               style={styles.input}
               placeholder="Write something that may help someone today…"

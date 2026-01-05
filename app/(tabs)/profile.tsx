@@ -31,38 +31,54 @@ import {
 } from "react-native";
 import { auth, db } from "../../firebaseConfig";
 
-/* -------------------- CLOUDINARY -------------------- */
+// Cloudinary ayarları
+// Profil fotoğrafı dosya olarak Firestore'a değil Cloudinary'ye yüklenir
 const CLOUD_NAME = "dk32tfnnz";
 const UPLOAD_PRESET = "kfrtlndy";
 const API_KEY = "234656893643222";
 
+// Günlük hatırlatma açık mı kapalı mı bilgisini cihazda tutmak için key
 const REMINDER_KEY = "daily_reminder_enabled";
 
-/* -------------------- SCREEN -------------------- */
 export default function ProfileScreen() {
   const router = useRouter();
+
+  // Firebase Authentication üzerinden giriş yapan kullanıcı
   const user = auth.currentUser;
 
+  // Profil fotoğrafı URL'i (Cloudinary'den gelir)
   const [image, setImage] = useState<string | null>(null);
+
+  // Ekran yüklenirken spinner göstermek için
   const [loading, setLoading] = useState(true);
+
+  // Kullanıcının toplam günlük (diary) sayısı
   const [journalCount, setJournalCount] = useState(0);
+
+  // Son günlük kaydına göre hesaplanan mental durum
   const [mindBalance, setMindBalance] = useState("Balanced");
+
+  // Günlük bildirim açık mı kapalı mı
   const [reminderEnabled, setReminderEnabled] = useState(false);
 
   /* -------- LOAD PROFILE -------- */
+  // Sayfa açıldığında kullanıcıya ait tüm profil verileri yüklenir
   useEffect(() => {
     if (!user) return;
 
     const loadProfile = async () => {
       try {
+        // users koleksiyonundan kullanıcının kendi dokümanı çekilir
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
         const userData = userSnap.data();
 
+        // Daha önce yüklenmiş profil fotoğrafı varsa ekrana basılır
         if (userData?.profilePictureURL) {
           setImage(userData.profilePictureURL);
         }
 
+        // Kullanıcının toplam günlük sayısı hesaplanır
         const qCount = query(
           collection(db, "diaries"),
           where("userId", "==", user.uid)
@@ -70,6 +86,7 @@ export default function ProfileScreen() {
         const countSnap = await getDocs(qCount);
         setJournalCount(countSnap.size);
 
+        // Kullanıcının en son yazdığı günlük alınır
         const qLast = query(
           collection(db, "diaries"),
           where("userId", "==", user.uid),
@@ -79,6 +96,7 @@ export default function ProfileScreen() {
         const lastSnap = await getDocs(qLast);
         const lastDiary = lastSnap.docs[0]?.data();
 
+        // Son ruh haline göre mental durum belirlenir
         let balance = "Balanced";
         if (!lastDiary) balance = "Unstable";
         if (lastDiary?.mood === "calm" || lastDiary?.mood === "happy") {
@@ -86,11 +104,13 @@ export default function ProfileScreen() {
         }
         setMindBalance(balance);
 
+        // Günlük hatırlatma tercihi cihazdan okunur
         const storedReminder = await AsyncStorage.getItem(REMINDER_KEY);
         setReminderEnabled(storedReminder === "true");
       } catch (e) {
         console.log(e);
       } finally {
+        // Tüm işlemler bittikten sonra loading kapatılır
         setLoading(false);
       }
     };
@@ -99,11 +119,15 @@ export default function ProfileScreen() {
   }, [user]);
 
   /* -------- DAILY REMINDER -------- */
+  // Kullanıcı günlük hatırlatmayı açıp kapattığında çalışan fonksiyon
   const toggleReminder = async (value: boolean) => {
     setReminderEnabled(value);
+
+    // Tercih cihazda saklanır (Firestore'a yazılmaz)
     await AsyncStorage.setItem(REMINDER_KEY, value ? "true" : "false");
 
     if (value) {
+      // Bildirim izni kontrol edilir
       const permission = await Notifications.requestPermissionsAsync();
       if (!permission.granted) {
         Alert.alert("Permission required", "Notifications are disabled.");
@@ -111,6 +135,7 @@ export default function ProfileScreen() {
         return;
       }
 
+      // Her gün saat 20:00'de bildirim planlanır
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Take a moment 🌿",
@@ -124,14 +149,17 @@ export default function ProfileScreen() {
         },
       });
     } else {
+      // Kapalıysa tüm planlı bildirimler iptal edilir
       await Notifications.cancelAllScheduledNotificationsAsync();
     }
   };
 
   /* -------- PICK IMAGE -------- */
+  // Kullanıcının profil fotoğrafını seçip yüklediği fonksiyon
   const pickImage = async () => {
     if (!user) return;
 
+    // Galeri erişim izni istenir
     const permission =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
@@ -139,6 +167,7 @@ export default function ProfileScreen() {
       return;
     }
 
+    // Kullanıcı galeriden fotoğraf seçer
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,
@@ -148,9 +177,11 @@ export default function ProfileScreen() {
 
     if (result.canceled) return;
 
+    // Seçilen fotoğrafın cihazdaki yolu
     const uri = result.assets[0].uri;
     setImage(uri);
 
+    // Cloudinary için form-data hazırlanır
     const data = new FormData();
     data.append("file", {
       uri,
@@ -163,6 +194,8 @@ export default function ProfileScreen() {
 
     try {
       setLoading(true);
+
+      // Fotoğraf Cloudinary'ye upload edilir
       const res = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
         { method: "post", body: data }
@@ -171,6 +204,7 @@ export default function ProfileScreen() {
 
       if (!json.secure_url) throw new Error("Upload failed");
 
+      // Cloudinary'den gelen URL Firestore users dokümanına yazılır
       await setDoc(
         doc(db, "users", user.uid),
         { profilePictureURL: json.secure_url },
@@ -184,16 +218,23 @@ export default function ProfileScreen() {
   };
 
   /* -------- LOGOUT -------- */
+  // Kullanıcı çıkış yaptığında çalışan fonksiyon
   const handleLogout = async () => {
     try {
+      // Firebase oturumu kapatılır
       await signOut(auth);
+
+      // Cihazdaki tüm local veriler temizlenir
       await AsyncStorage.clear();
+
+      // Login ekranına yönlendirilir
       setTimeout(() => router.replace("/login" as any), 300);
     } catch (e: any) {
       Alert.alert("Logout Error", e.message);
     }
   };
 
+  // Yüklenme sırasında spinner gösterilir
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -202,6 +243,7 @@ export default function ProfileScreen() {
     );
   }
 
+  // Profil ekranının ana UI yapısı
   return (
     <ImageBackground
       source={require("../../assets/images/forprofile.png")}

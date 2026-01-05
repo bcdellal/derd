@@ -29,6 +29,7 @@ import {
 import { auth, db } from "../../firebaseConfig";
 
 /* -------------------- TYPES -------------------- */
+// Günlük verileri için tip tanım
 interface DiaryEntry {
   id?: string;
   title: string;
@@ -46,20 +47,25 @@ const MOODS = [
   { key: "tense", label: "tense", emoji: "😠" },
   { key: "tired", label: "tired", emoji: "😴" },
 ];
-
+// Modlara göre ilgili mood objesini bulan yer
 const getMoodByKey = (key: string) =>
   MOODS.find((m) => m.key === key);
 
 /* -------------------- SCREEN -------------------- */
 export default function DiaryScreen() {
+  // Kullanıcının günlük kayıtları 
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  // Form alanları
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
+  // Güncelleme modunda hangi kayıt düzenleniyorsa onun kontrol 
   const [editingId, setEditingId] = useState<string | null>(null);
+  // İnternet bağlantı kontrolü
   const [isConnected, setIsConnected] = useState(true);
 
   /* ----------- NETWORK ----------- */
+  // Cihazın online offline  durumunu dinler
   useEffect(() => {
     const unsub = NetInfo.addEventListener((state) => {
       setIsConnected(!!state.isConnected);
@@ -68,16 +74,17 @@ export default function DiaryScreen() {
   }, []);
 
   /* ----------- FIRESTORE LISTENER ----------- */
+  // Kullanıcı günlüklerini Firestoredan gerçek zamanlı çeken yer
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
-
+// Sadece giriş yapan kullanıcıya ait günlükler çekilir
     const q = query(
       collection(db, "diaries"),
       where("userId", "==", user.uid),
       orderBy("createdAt", "desc")
     );
-
+// onSnapshot sayesinde veriler anlık güncellenir
     const unsub = onSnapshot(q, (snap) => {
       const data: DiaryEntry[] = [];
       snap.forEach((docSnap) => {
@@ -99,6 +106,7 @@ export default function DiaryScreen() {
   }, []);
 
   /* ----------- OFFLINE SYNC ----------- */
+  // Offline kaydedilen günlükleri online olunca Firestore gönderir
   useEffect(() => {
     const syncOffline = async () => {
       if (!isConnected || !auth.currentUser) return;
@@ -116,13 +124,16 @@ export default function DiaryScreen() {
           userId: auth.currentUser.uid,
         });
       }
+      // Senkronizasyon sonrası local kayıtlar silinir
       await AsyncStorage.removeItem("offlineEntries");
     };
     syncOffline();
   }, [isConnected]);
 
   /* ----------- SAVE ----------- */
+  // Yeni kayıt ekleme güncelleme 
   const handleSave = async () => {
+    //mod yazdı mı içerik başlık yazdı mı uyarmaca 
     if (!title.trim() || !content.trim()) {
       Alert.alert("Warning", "Title and content cannot be empty.");
       return;
@@ -136,6 +147,7 @@ export default function DiaryScreen() {
     if (!user) return;
 
     try {
+      // kayıt Offlinesa locale alır
       if (!isConnected) {
         const local: DiaryEntry = {
           title,
@@ -149,13 +161,16 @@ export default function DiaryScreen() {
         await AsyncStorage.setItem("offlineEntries", JSON.stringify(updated));
         Alert.alert("Offline", "Record saved on device.");
       } else if (editingId) {
+        // Güncelleme modu
         await updateDoc(doc(db, "diaries", editingId), {
           title,
           content,
           mood: selectedMood,
         });
         Alert.alert("Success", "Daily updated.");
-      } else {
+      } 
+      // Yeni günlük ekleme
+      else {
         await addDoc(collection(db, "diaries"), {
           title,
           content,
@@ -163,7 +178,7 @@ export default function DiaryScreen() {
           createdAt: serverTimestamp(),
           userId: user.uid,
         });
-
+        // Kullanıcının son günlük tarihi güncellenir
         await updateDoc(doc(db, "users", user.uid), {
           lastJournalAt: serverTimestamp(),
         });
@@ -181,7 +196,7 @@ export default function DiaryScreen() {
       Alert.alert("Error", " Registration failed..");
     }
   };
-
+// olan günlüğü düzenleme moduna alma
   const handleEdit = (e: DiaryEntry) => {
     setEditingId(e.id!);
     setTitle(e.title);
@@ -195,13 +210,14 @@ export default function DiaryScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
+    {/* Klavye dışına tıklanınca klavye kapanır */}
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.header}>How Are You Feeling Today?</Text>
-
+           {/* Mood seçimi */}
           <View style={styles.moodRow}>
             {MOODS.map((m) => (
               <TouchableOpacity
@@ -217,13 +233,14 @@ export default function DiaryScreen() {
               </TouchableOpacity>
             ))}
           </View>
-
+           {/* Günlük başlığı */}
           <TextInput
             style={styles.inputTitle}
             placeholder="Title"
             value={title}
             onChangeText={setTitle}
           />
+          {/* Günlük içeriği */}
           <TextInput
             style={styles.inputContent}
             placeholder="Write your thoughts..."
@@ -231,7 +248,7 @@ export default function DiaryScreen() {
             value={content}
             onChangeText={setContent}
           />
-
+          {/* Kaydet  güncelle buton */}
           <TouchableOpacity style={styles.button} onPress={handleSave}>
             <FontAwesome
               name={editingId ? "save" : "check"}
@@ -244,7 +261,7 @@ export default function DiaryScreen() {
           </TouchableOpacity>
 
           <View style={styles.divider} />
-
+          {/* Günlük listesi */}
           {entries.map((e) => {
             const mood = getMoodByKey(e.mood);
             return (
